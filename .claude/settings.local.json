@@ -47,7 +47,10 @@
       "PowerShell(Get-ChildItem *)",
       "PowerShell($env:ANDROID_SDK_ROOT = \"F:\\\\Android\\\\sdk\"; $env:ANDROID_HOME = \"F:\\\\Android\\\\sdk\"; Start-Process -FilePath \"F:\\\\Android\\\\sdk\\\\emulator\\\\emulator.exe\" -ArgumentList \"-avd Pixel_7 -no-snapshot-load\" -PassThru | Select-Object Id)",
       "PowerShell(npm uninstall *)",
-      "PowerShell(npx expo install expo-image-manipulator --prefix \"G:\\\\claudeapps\\\\react-expo\\\\03\\\\basketball-rotation\" 2>&1)"
+      "PowerShell(npx expo install expo-image-manipulator --prefix \"G:\\\\claudeapps\\\\react-expo\\\\03\\\\basketball-rotation\" 2>&1)",
+      "Bash(git stash *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
