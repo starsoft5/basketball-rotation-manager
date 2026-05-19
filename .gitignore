@@ -40,5 +40,9 @@ yarn-error.*
 /ios
 /android
 
-# APK files
+# APK and AAB files
 *.apk
+*.aab
+
+# Google Play Store service account key
+play-store-key.json

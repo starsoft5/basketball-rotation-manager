@@ -13,7 +13,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.apollo.estrella.basketballrotation",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -21,19 +25,29 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": false,
-      "package": "com.anonymous.basketballrotation"
+      "package": "com.apollo.estrella.basketballrotation",
+      "versionCode": 2
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
     "updates": {
-      "enabled": false
+      "enabled": false,
+      "checkAutomatically": "NEVER",
+      "fallbackToCacheTimeout": 0
     },
     "scheme": "basketball-rotation",
     "plugins": [
       "expo-router",
       "expo-sqlite"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "294d9f16-b85a-439c-87f1-f5279aad4315"
+      }
+    },
+    "owner": "starsoft5"
   }
 }

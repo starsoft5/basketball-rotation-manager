@@ -33,6 +33,7 @@ function Header() {
     "/": "Basketball Rotation Manager",
     "/setup": "New Game Setup",
     "/history": "Game History",
+    "/share": "Share App",
   };
 
   const title =

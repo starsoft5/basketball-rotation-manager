@@ -29,6 +29,14 @@ export default function HomeScreen() {
         <Text style={s.secondaryBtnText}>Game History</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity
+        style={[s.secondaryBtn, s.shareBtn]}
+        onPress={() => router.push("/share")}
+        activeOpacity={0.8}
+      >
+        <Text style={s.secondaryBtnText}>📲 Share to Another Device</Text>
+      </TouchableOpacity>
+
       <View style={s.infoCard}>
         <Text style={s.infoTitle}>How it works:</Text>
         <Text style={s.infoText}>
@@ -96,6 +104,10 @@ const s = StyleSheet.create({
     textAlign: "center",
     fontSize: 20,
     fontWeight: "bold",
+  },
+  shareBtn: {
+    marginTop: 12,
+    borderColor: "#F97316",
   },
   infoCard: {
     marginTop: 12,

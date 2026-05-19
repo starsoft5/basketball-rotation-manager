@@ -50,7 +50,25 @@
       "PowerShell(npx expo install expo-image-manipulator --prefix \"G:\\\\claudeapps\\\\react-expo\\\\03\\\\basketball-rotation\" 2>&1)",
       "Bash(git stash *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(git -c http.sslBackend=schannel push --force -u origin master)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = \"0\"; Set-Location \"G:\\\\claudeapps\\\\react-expo\\\\03\\\\basketball-rotation\"; npx eas-cli build --platform android --profile production --non-interactive)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = \"0\"; Set-Location \"G:\\\\claudeapps\\\\react-expo\\\\03\\\\basketball-rotation\"; npx eas-cli init --non-interactive)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = \"0\"; Set-Location \"G:\\\\claudeapps\\\\react-expo\\\\03\\\\basketball-rotation\"; npx eas-cli init --non-interactive --force)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = \"0\"; Invoke-WebRequest -Uri \"https://expo.dev/artifacts/eas/iz2YNLewPxNMyEkgNDRYT2.aab\" -OutFile \"G:\\\\claudeapps\\\\react-expo\\\\03\\\\basketball-rotation\\\\basketball-rotation.aab\")",
+      "Bash(set NODE_TLS_REJECT_UNAUTHORIZED=0)",
+      "Bash(npx eas *)",
+      "Bash(eas *)",
+      "PowerShell(eas build *)",
+      "PowerShell(eas whoami *)",
+      "PowerShell(eas build:list *)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = '0'; Invoke-WebRequest -Uri \"https://expo.dev/artifacts/eas/vr3xJsBY9Zs9YM3oze6WyL.apk\" -OutFile \"G:\\\\claudeapps\\\\react-expo\\\\03\\\\basketball-rotation\\\\basketball-rotation.apk\")",
+      "Bash(node -e \"try { require\\('sharp'\\); console.log\\('sharp available'\\); } catch\\(e\\) { console.log\\('sharp not available'\\); }\")",
+      "Bash(node -e \"try { require\\('canvas'\\); console.log\\('canvas available'\\); } catch\\(e\\) { console.log\\('canvas not available'\\); }\")",
+      "Bash(node generate-icons.js)",
+      "Bash(node -e \"const sharp = require\\('sharp'\\); async function check\\(\\) { const icon = await sharp\\('assets/icon.png'\\).metadata\\(\\); console.log\\('icon.png:', icon.width + 'x' + icon.height, 'format:', icon.format, 'channels:', icon.channels\\); const adaptive = await sharp\\('assets/adaptive-icon.png'\\).metadata\\(\\); console.log\\('adaptive-icon.png:', adaptive.width + 'x' + adaptive.height, 'format:', adaptive.format, 'channels:', adaptive.channels, 'hasAlpha:', adaptive.hasAlpha\\); } check\\(\\);\")",
+      "Bash(node -e \"const sharp = require\\('sharp'\\); async function check\\(\\) { const icon = await sharp\\('assets/icon.png'\\).metadata\\(\\); console.log\\('icon.png:', icon.width + 'x' + icon.height, '| format:', icon.format, '| size:', icon.size, 'bytes'\\); const adaptive = await sharp\\('assets/adaptive-icon.png'\\).metadata\\(\\); console.log\\('adaptive-icon.png:', adaptive.width + 'x' + adaptive.height, '| format:', adaptive.format, '| hasAlpha:', adaptive.hasAlpha, '| size:', adaptive.size, 'bytes'\\); } check\\(\\);\")",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = \"0\"; Set-Location \"G:\\\\claudeapps\\\\react-expo\\\\03\\\\basketball-rotation\"; npx eas build --platform android --profile preview --non-interactive 2>&1)"
     ]
   }
 }
