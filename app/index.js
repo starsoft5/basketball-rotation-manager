@@ -1,8 +1,28 @@
+import { useState, useCallback } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
+import { getSettings } from "../db/database";
 
 export default function HomeScreen() {
   const router = useRouter();
+  const [gameHours, setGameHours] = useState(2);
+  const [minutesPerGame, setMinutesPerGame] = useState(10);
+  const [distributionMode, setDistributionMode] = useState("unequal_games");
+
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        const settings = await getSettings();
+        setGameHours(settings.gameHours);
+        setMinutesPerGame(settings.minutesPerGame);
+        setDistributionMode(settings.distributionMode);
+      })();
+    }, [])
+  );
+
+  const totalMinutes = gameHours * 60;
+  const totalRotations = Math.floor(totalMinutes / minutesPerGame);
 
   return (
     <ScrollView style={s.scroll} contentContainerStyle={s.container}>
@@ -40,11 +60,14 @@ export default function HomeScreen() {
       <View style={s.infoCard}>
         <Text style={s.infoTitle}>How it works:</Text>
         <Text style={s.infoText}>
-          • Game lasts 120 minutes{"\n"}
-          • 10 players on court per rotation{"\n"}
-          • Each rotation is 10 minutes{"\n"}
-          • Supports any number of players (10+){"\n"}
-          • Playing time balanced fairly for all
+          {"• "}Game lasts {totalMinutes} minutes{"\n"}
+          {"• "}10 players on court per rotation{"\n"}
+          {"• "}Mode: {distributionMode === "equal_time" ? "Equal Playing Time" : "Flexible Rotations"}{"\n"}
+          {distributionMode === "unequal_games"
+            ? `• Each rotation is ${minutesPerGame} minutes\n• ${totalRotations} rotation${totalRotations !== 1 ? "s" : ""} total`
+            : "• Rotation duration calculated per player count"}{"\n"}
+          {"• "}Supports any number of players (10+){"\n"}
+          {"• "}Playing time balanced fairly for all
         </Text>
       </View>
 

@@ -62,7 +62,20 @@ async function initializeDatabase(database) {
       FOREIGN KEY (rotation_id) REFERENCES rotations(id) ON DELETE CASCADE,
       FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
+
+  const existing = await database.getFirstAsync("SELECT COUNT(*) as cnt FROM settings");
+  if (existing.cnt === 0) {
+    await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('game_hours', '2')");
+    await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('minutes_per_game', '10')");
+  }
+  await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('distribution_mode', 'unequal_games')");
+  await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('equal_time_hours', '2')");
 }
 
 export async function createGame(name, totalPlayers) {
@@ -245,6 +258,29 @@ export async function deletePlayer(playerId) {
   const database = await getDatabase();
   await database.runAsync("DELETE FROM rotation_players WHERE player_id = ?", [playerId]);
   await database.runAsync("DELETE FROM players WHERE id = ?", [playerId]);
+}
+
+export async function getSettings() {
+  const database = await getDatabase();
+  const rows = await database.getAllAsync("SELECT key, value FROM settings");
+  const settings = {};
+  for (const row of rows) {
+    settings[row.key] = row.value;
+  }
+  return {
+    gameHours: parseInt(settings.game_hours || "2", 10),
+    equalTimeHours: parseInt(settings.equal_time_hours || "2", 10),
+    minutesPerGame: parseInt(settings.minutes_per_game || "10", 10),
+    distributionMode: settings.distribution_mode || "unequal_games",
+  };
+}
+
+export async function saveSetting(key, value) {
+  const database = await getDatabase();
+  await database.runAsync(
+    "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+    [key, String(value)]
+  );
 }
 
 export async function getFullGameData(gameId) {

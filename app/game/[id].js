@@ -27,11 +27,10 @@ import {
   deletePlayer,
   linkFriends,
   unlinkPlayer,
+  getSettings,
 } from "../../db/database";
-import { generateSchedule, calcRotations, formatTime } from "../../utils/scheduler";
+import { generateSchedule, generateScheduleEqualTime, calcRotations, calcRotationsEqualTime, formatTime } from "../../utils/scheduler";
 import RotationCard from "../../components/RotationCard";
-
-const ROTATION_DURATION = 600;
 
 export default function GameScreen() {
   const router = useRouter();
@@ -40,10 +39,12 @@ export default function GameScreen() {
 
   const [gameData, setGameData] = useState(null);
   const [currentRotation, setCurrentRotation] = useState(0);
-  const [timeRemaining, setTimeRemaining] = useState(ROTATION_DURATION);
+  const [timeRemaining, setTimeRemaining] = useState(600);
   const [isRunning, setIsRunning] = useState(false);
   const [gameStatus, setGameStatus] = useState("ready");
   const [schedule, setSchedule] = useState([]);
+  const [rotationDuration, setRotationDuration] = useState(600);
+  const [minutesPerGame, setMinutesPerGame] = useState(10);
 
   const [showManage, setShowManage] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState("");
@@ -55,10 +56,14 @@ export default function GameScreen() {
   const currentRotationRef = useRef(0);
   const scheduleRef = useRef([]);
   const gameDataRef = useRef(null);
+  const rotationDurationRef = useRef(600);
+  const minutesPerGameRef = useRef(10);
 
   useEffect(() => { currentRotationRef.current = currentRotation; }, [currentRotation]);
   useEffect(() => { scheduleRef.current = schedule; }, [schedule]);
   useEffect(() => { gameDataRef.current = gameData; }, [gameData]);
+  useEffect(() => { rotationDurationRef.current = rotationDuration; }, [rotationDuration]);
+  useEffect(() => { minutesPerGameRef.current = minutesPerGame; }, [minutesPerGame]);
 
   useEffect(() => {
     loadGame();
@@ -73,15 +78,38 @@ export default function GameScreen() {
   }, []);
 
   const loadGame = async () => {
+    const settings = await getSettings();
+    const mode = settings.distributionMode;
+    const maxGameMinutes = (mode === "equal_time" ? settings.equalTimeHours : settings.gameHours) * 60;
+
     const data = await getFullGameData(gameId);
     if (!data) return;
     setGameData(data);
+
+    let minsPerGame, duration;
+    if (mode === "equal_time" && data.players.length > 0) {
+      const info = calcRotationsEqualTime(data.players.length, maxGameMinutes);
+      minsPerGame = info.minutesPerRotation;
+      duration = Math.round(minsPerGame * 60);
+    } else {
+      minsPerGame = settings.minutesPerGame;
+      duration = minsPerGame * 60;
+    }
+
+    setRotationDuration(duration);
+    setMinutesPerGame(minsPerGame);
+    rotationDurationRef.current = duration;
+    minutesPerGameRef.current = minsPerGame;
+    setTimeRemaining(duration);
+
     if (data.rotations.length > 0) {
       setSchedule(data.rotations);
       setCurrentRotation(data.game.current_rotation);
       setGameStatus(data.game.status);
     } else {
-      const newSchedule = generateSchedule(data.players);
+      const newSchedule = mode === "equal_time"
+        ? generateScheduleEqualTime(data.players, maxGameMinutes)
+        : generateSchedule(data.players, maxGameMinutes, minsPerGame);
       await saveSchedule(gameId, newSchedule);
       const fullData = await getFullGameData(gameId);
       setGameData(fullData);
@@ -103,7 +131,7 @@ export default function GameScreen() {
         if (existing) {
           await updatePlayerStats(
             player.id,
-            (existing.total_play_time || 0) + 10,
+            Math.round((existing.total_play_time || 0) + minutesPerGameRef.current),
             (existing.times_played || 0) + 1
           );
         }
@@ -113,7 +141,7 @@ export default function GameScreen() {
     if (rot >= sched.length) {
       setGameStatus("completed");
       await updateGameStatus(gameId, "completed");
-      Alert.alert("Game Over!", "All 10 rotations have been completed.", [
+      Alert.alert("Game Over!", `All ${sched.length} rotations have been completed.`, [
         { text: "View Summary", onPress: () => {} },
         { text: "Go Home", onPress: () => router.replace("/") },
       ]);
@@ -123,7 +151,7 @@ export default function GameScreen() {
     const nextRotation = rot + 1;
     setCurrentRotation(nextRotation);
     await updateGameRotation(gameId, nextRotation);
-    setTimeRemaining(ROTATION_DURATION);
+    setTimeRemaining(rotationDurationRef.current);
 
     if (nextRotation - 1 < sched.length) {
       await updateRotationStatus(sched[nextRotation - 1].id, "active");
@@ -310,12 +338,12 @@ export default function GameScreen() {
     }
   };
 
-  const elapsed = (currentRotation - 1) * ROTATION_DURATION + (ROTATION_DURATION - timeRemaining);
+  const elapsed = (currentRotation - 1) * rotationDuration + (rotationDuration - timeRemaining);
   const totalGameTime = formatTime(Math.max(elapsed, 0));
   const progress =
     gameStatus === "in_progress"
       ? ((currentRotation - 1) / schedule.length) * 100 +
-        ((ROTATION_DURATION - timeRemaining) / ROTATION_DURATION / schedule.length) * 100
+        ((rotationDuration - timeRemaining) / rotationDuration / schedule.length) * 100
       : gameStatus === "completed" ? 100 : 0;
 
   if (!gameData || schedule.length === 0) {
@@ -358,7 +386,7 @@ export default function GameScreen() {
           <View style={s.stat}>
             <Text style={s.statLabel}>Rotations</Text>
             <Text style={s.statValue}>
-              {Math.max(currentRotation - 1, 0)}/{schedule.length}
+              {gameStatus === "completed" ? schedule.length : Math.max(currentRotation - 1, 0)}/{schedule.length}
             </Text>
           </View>
         </View>
@@ -571,7 +599,7 @@ export default function GameScreen() {
           <RotationCard
             rotation={item}
             isActive={gameStatus === "in_progress" && index === currentRotation - 1}
-            isCompleted={index < currentRotation - 1}
+            isCompleted={gameStatus === "completed" || index < currentRotation - 1}
           />
         )}
         onScrollToIndexFailed={(info) => {

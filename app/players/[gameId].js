@@ -12,8 +12,8 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { addPlayer, getPlayers, updateGameStatus, deletePlayer } from "../../db/database";
-import { calcRotations } from "../../utils/scheduler";
+import { addPlayer, getPlayers, updateGameStatus, deletePlayer, getSettings } from "../../db/database";
+import { calcRotations, calcRotationsEqualTime, formatTime } from "../../utils/scheduler";
 import * as ImagePicker from "expo-image-picker";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 
@@ -23,9 +23,14 @@ export default function PlayerEntryScreen() {
   const [playerName, setPlayerName] = useState("");
   const [players, setPlayers] = useState([]);
   const [scanning, setScanning] = useState(false);
+  const [gameHours, setGameHours] = useState(2);
+  const [equalTimeHours, setEqualTimeHours] = useState(2);
+  const [minutesPerGame, setMinutesPerGame] = useState(10);
+  const [distributionMode, setDistributionMode] = useState("unequal_games");
 
   useEffect(() => {
     loadPlayers();
+    loadSettings();
   }, []);
 
   const loadPlayers = async () => {
@@ -33,7 +38,20 @@ export default function PlayerEntryScreen() {
     setPlayers(existing);
   };
 
-  const stats = players.length >= 10 ? calcRotations(players.length) : null;
+  const loadSettings = async () => {
+    const settings = await getSettings();
+    setGameHours(settings.gameHours);
+    setEqualTimeHours(settings.equalTimeHours);
+    setMinutesPerGame(settings.minutesPerGame);
+    setDistributionMode(settings.distributionMode);
+  };
+
+  const activeHours = distributionMode === "equal_time" ? equalTimeHours : gameHours;
+  const stats = players.length >= 10
+    ? distributionMode === "equal_time"
+      ? calcRotationsEqualTime(players.length, activeHours * 60)
+      : calcRotations(players.length, activeHours * 60, minutesPerGame)
+    : null;
 
   const handleAddPlayer = async () => {
     if (!playerName.trim()) return;
@@ -47,14 +65,11 @@ export default function PlayerEntryScreen() {
     const resized = await manipulateAsync(uri, [{ resize: { width: 1500 } }], {
       compress: 0.85,
       format: SaveFormat.JPEG,
+      base64: true,
     });
 
     const formData = new FormData();
-    formData.append("file", {
-      uri: resized.uri,
-      type: "image/jpeg",
-      name: "players.jpg",
-    });
+    formData.append("base64Image", `data:image/jpeg;base64,${resized.base64}`);
     formData.append("language", "eng");
     formData.append("isOverlayRequired", "false");
     formData.append("scale", "true");
@@ -67,6 +82,10 @@ export default function PlayerEntryScreen() {
     });
 
     const data = await response.json();
+
+    if (data.IsErroredOnProcessing) {
+      throw new Error(data.ErrorMessage?.[0] || "OCR processing error");
+    }
     if (!data.ParsedResults || !data.ParsedResults[0]) return [];
 
     return data.ParsedResults[0].ParsedText
@@ -183,9 +202,11 @@ export default function PlayerEntryScreen() {
         {stats && (
           <View style={s.statsCard}>
             <Text style={s.statsText}>
-              {stats.totalGames} games ({stats.totalMinutes} min) — {stats.isEven
-                ? `${stats.minPlays} games each`
-                : `${stats.playersWithMin} get ${stats.minPlays}, ${stats.playersWithExtra} get ${stats.maxPlays}`}
+              {distributionMode === "equal_time"
+                ? `${stats.totalGames} rotations (${stats.totalMinutes} min) — ${formatTime(Math.round(stats.minutesPerRotation * 60))} each, ${stats.playsPerPlayer} games/player`
+                : `${stats.totalGames} games (${stats.totalMinutes} min) — ${stats.isEven
+                    ? `${stats.minPlays} games each`
+                    : `${stats.playersWithMin} get ${stats.minPlays}, ${stats.playersWithExtra} get ${stats.maxPlays}`}`}
             </Text>
           </View>
         )}
