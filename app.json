@@ -40,7 +40,8 @@
     "scheme": "basketball-rotation",
     "plugins": [
       "expo-router",
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-sharing"
     ],
     "extra": {
       "router": {},
