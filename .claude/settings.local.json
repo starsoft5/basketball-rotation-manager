@@ -140,7 +140,13 @@
       "Bash(echo \"Build started, PID: $!\")",
       "Bash(NODE_TLS_REJECT_UNAUTHORIZED=0 npx eas-cli *)",
       "WebFetch(domain:docs.expo.dev)",
-      "PowerShell(git add *)"
+      "PowerShell(git add *)",
+      "Bash(git commit *)",
+      "Bash(git *)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = \"0\"; npx expo install expo-sharing expo-file-system)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = \"0\"; npx eas build --platform android --profile preview --non-interactive 2>&1)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = '0'; $buildInfo = npx eas build:view d4cb68e5-867d-42b0-adf9-f378673944c1 --json 2>&1 | Where-Object { $_ -notmatch 'Warning:' }; $buildInfo)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = '0'; Invoke-WebRequest -Uri \"https://expo.dev/artifacts/eas/sh46dHF7Nh4qzezUnasHAa.apk\" -OutFile \"C:\\\\claudeapps\\\\basketball-rotation\\\\basketball-rotation-v01.apk\")"
     ]
   }
 }

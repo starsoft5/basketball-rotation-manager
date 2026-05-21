@@ -1,20 +1,40 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from "react-native";
+import * as Sharing from "expo-sharing";
+import { useState } from "react";
 
 const APP_NAME = "Basketball Rotation";
-const SHARE_MESSAGE = `🏀 Check out ${APP_NAME}!\n\nManage player rotations for your pickup basketball games. Fair playing time for everyone!\n\nAsk me for the APK to install it on your Android device.`;
 
-async function shareApp() {
+async function shareApp(setSharing) {
+  if (Platform.OS !== "android") {
+    Alert.alert("Android Only", "APK sharing is only available on Android devices.");
+    return;
+  }
+
+  setSharing(true);
   try {
-    await Share.share({
-      message: SHARE_MESSAGE,
-      title: APP_NAME,
+    const { getApkPath } = require("../modules/apk-share");
+    const apkPath = await getApkPath();
+
+    const canShare = await Sharing.isAvailableAsync();
+    if (!canShare) {
+      Alert.alert("Error", "Sharing is not available on this device.");
+      return;
+    }
+
+    await Sharing.shareAsync("file://" + apkPath, {
+      mimeType: "application/vnd.android.package-archive",
+      dialogTitle: `Share ${APP_NAME}`,
     });
   } catch (e) {
-    Alert.alert("Error", "Could not open share dialog.");
+    Alert.alert("Error", "Could not share the app: " + e.message);
+  } finally {
+    setSharing(false);
   }
 }
 
 export default function ShareScreen() {
+  const [sharing, setSharing] = useState(false);
+
   return (
     <ScrollView style={s.scroll} contentContainerStyle={s.container}>
       <Text style={s.emoji}>📲</Text>
@@ -26,15 +46,22 @@ export default function ShareScreen() {
           Send the app to friends and teammates so they can install it on their Android devices.
         </Text>
 
-        <TouchableOpacity style={s.shareButton} onPress={shareApp} activeOpacity={0.8}>
-          <Text style={s.shareButtonText}>📤 Share App</Text>
+        <TouchableOpacity
+          style={[s.shareButton, sharing && s.shareButtonDisabled]}
+          onPress={() => shareApp(setSharing)}
+          activeOpacity={0.8}
+          disabled={sharing}
+        >
+          <Text style={s.shareButtonText}>
+            {sharing ? "Preparing APK..." : "📤 Share App"}
+          </Text>
         </TouchableOpacity>
 
         <View style={s.divider} />
 
         <Text style={s.howTitle}>How to install on another device:</Text>
-        <Text style={s.step}>1. Share the APK file via Bluetooth, WhatsApp, or any file-sharing app</Text>
-        <Text style={s.step}>2. On the other device, open the APK file</Text>
+        <Text style={s.step}>1. Tap "Share App" and choose Bluetooth, WhatsApp, or any file-sharing app</Text>
+        <Text style={s.step}>2. On the other device, open the received APK file</Text>
         <Text style={s.step}>3. Allow "Install from unknown sources" if prompted</Text>
         <Text style={s.step}>4. Tap Install and enjoy! 🏀</Text>
       </View>
@@ -84,6 +111,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 40,
     borderRadius: 16,
     width: "100%",
+  },
+  shareButtonDisabled: {
+    backgroundColor: "#9A5B2F",
   },
   shareButtonText: {
     color: "#FFF",
