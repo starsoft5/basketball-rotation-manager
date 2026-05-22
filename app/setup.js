@@ -130,24 +130,6 @@ export default function SetupScreen() {
           <Text style={s.modeTitle}>Distribution Mode</Text>
 
           <TouchableOpacity
-            style={[s.modeCard, distributionMode === "unequal_games" && s.modeCardActive]}
-            onPress={() => handleModeChange("unequal_games")}
-            activeOpacity={0.8}
-          >
-            <View style={s.modeRadio}>
-              {distributionMode === "unequal_games" && <View style={s.modeRadioInner} />}
-            </View>
-            <View style={s.modeTextWrap}>
-              <Text style={[s.modeCardTitle, distributionMode === "unequal_games" && s.modeCardTitleActive]}>
-                Flexible Rotations
-              </Text>
-              <Text style={s.modeCardDesc}>
-                Fixed {minutesPerGame} min per rotation. Some players may play 1 more game to fill total time.
-              </Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
             style={[s.modeCard, distributionMode === "equal_time" && s.modeCardActive]}
             onPress={() => handleModeChange("equal_time")}
             activeOpacity={0.8}
@@ -161,6 +143,24 @@ export default function SetupScreen() {
               </Text>
               <Text style={s.modeCardDesc}>
                 All players get the same number of games. Rotation duration is auto-calculated for fairness.
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[s.modeCard, distributionMode === "unequal_games" && s.modeCardActive]}
+            onPress={() => handleModeChange("unequal_games")}
+            activeOpacity={0.8}
+          >
+            <View style={s.modeRadio}>
+              {distributionMode === "unequal_games" && <View style={s.modeRadioInner} />}
+            </View>
+            <View style={s.modeTextWrap}>
+              <Text style={[s.modeCardTitle, distributionMode === "unequal_games" && s.modeCardTitleActive]}>
+                Flexible Rotations
+              </Text>
+              <Text style={s.modeCardDesc}>
+                Fixed {minutesPerGame} min per rotation. Some players may play 1 more game to fill total time.
               </Text>
             </View>
           </TouchableOpacity>

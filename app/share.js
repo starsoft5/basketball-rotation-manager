@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from "react-native";
 import * as Sharing from "expo-sharing";
 import { useState } from "react";
+import { checkLicense } from "../utils/license";
 
 const APP_NAME = "Basketball Rotation";
 
@@ -12,6 +13,13 @@ async function shareApp(setSharing) {
 
   setSharing(true);
   try {
+    const license = await checkLicense();
+    if (!license.valid) {
+      Alert.alert("Trial Expired", "Your 14-day trial has ended. Sharing is no longer available.");
+      setSharing(false);
+      return;
+    }
+
     const { getApkPath } = require("../modules/apk-share");
     const apkPath = await getApkPath();
 
