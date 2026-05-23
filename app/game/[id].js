@@ -7,6 +7,7 @@ import {
   FlatList,
   Alert,
   BackHandler,
+  AppState,
   Modal,
   ScrollView,
   StyleSheet,
@@ -28,6 +29,8 @@ import {
   linkFriends,
   unlinkPlayer,
   getSettings,
+  getDatabase,
+  createRotation,
 } from "../../db/database";
 import { generateSchedule, generateScheduleEqualTime, calcRotations, calcRotationsEqualTime, formatTime } from "../../utils/scheduler";
 import RotationCard from "../../components/RotationCard";
@@ -58,12 +61,15 @@ export default function GameScreen() {
   const gameDataRef = useRef(null);
   const rotationDurationRef = useRef(600);
   const minutesPerGameRef = useRef(10);
+  const timerEndTimeRef = useRef(null);
+  const timeRemainingRef = useRef(600);
 
   useEffect(() => { currentRotationRef.current = currentRotation; }, [currentRotation]);
   useEffect(() => { scheduleRef.current = schedule; }, [schedule]);
   useEffect(() => { gameDataRef.current = gameData; }, [gameData]);
   useEffect(() => { rotationDurationRef.current = rotationDuration; }, [rotationDuration]);
   useEffect(() => { minutesPerGameRef.current = minutesPerGame; }, [minutesPerGame]);
+  useEffect(() => { timeRemainingRef.current = timeRemaining; }, [timeRemaining]);
 
   useEffect(() => {
     loadGame();
@@ -71,8 +77,25 @@ export default function GameScreen() {
       handleExit();
       return true;
     });
+    const appStateListener = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active" && timerEndTimeRef.current) {
+        const now = Date.now();
+        const remaining = Math.round((timerEndTimeRef.current - now) / 1000);
+        if (remaining <= 0) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          timerRef.current = null;
+          timerEndTimeRef.current = null;
+          setTimeRemaining(0);
+          setIsRunning(false);
+          handleRotationEnd();
+        } else {
+          setTimeRemaining(remaining);
+        }
+      }
+    });
     return () => {
       backHandler.remove();
+      appStateListener.remove();
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, []);
@@ -175,17 +198,23 @@ export default function GameScreen() {
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
+    setTimeRemaining((current) => {
+      timerEndTimeRef.current = Date.now() + current * 1000;
+      return current;
+    });
     timerRef.current = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
-          setIsRunning(false);
-          handleRotationEnd();
-          return 0;
-        }
-        return prev - 1;
-      });
+      const now = Date.now();
+      const remaining = Math.round((timerEndTimeRef.current - now) / 1000);
+      if (remaining <= 0) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+        timerEndTimeRef.current = null;
+        setTimeRemaining(0);
+        setIsRunning(false);
+        handleRotationEnd();
+      } else {
+        setTimeRemaining(remaining);
+      }
     }, 1000);
     setIsRunning(true);
   }, [handleRotationEnd]);
@@ -195,6 +224,7 @@ export default function GameScreen() {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+    timerEndTimeRef.current = null;
     setIsRunning(false);
   }, []);
 
@@ -221,7 +251,11 @@ export default function GameScreen() {
     if (!data) return;
     const rot = currentRotationRef.current;
     const activePlayers = await getActivePlayers(gameId);
-    const futureRotations = data.rotations.filter((r) => r.rotation_number > rot);
+    const database = await getDatabase();
+
+    const settings = await getSettings();
+    const mode = settings.distributionMode;
+
     const pastCounts = new Map();
     activePlayers.forEach((p) => pastCounts.set(p.id, 0));
     data.rotations
@@ -229,9 +263,6 @@ export default function GameScreen() {
       .forEach((r) => r.players.forEach((p) => {
         pastCounts.set(p.id, (pastCounts.get(p.id) || 0) + 1);
       }));
-
-    const db = (await import("../../db/database")).getDatabase;
-    const database = await db();
 
     const groups = new Map();
     const solos = [];
@@ -247,24 +278,77 @@ export default function GameScreen() {
     groups.forEach((members) => units.push(members));
     solos.forEach((p) => units.push([p]));
 
-    for (const rotation of futureRotations) {
-      await database.runAsync("DELETE FROM rotation_players WHERE rotation_id = ?", [rotation.id]);
-      const sorted = [...units].sort((a, b) => {
-        const avgA = a.reduce((s, p) => s + (pastCounts.get(p.id) || 0), 0) / a.length;
-        const avgB = b.reduce((s, p) => s + (pastCounts.get(p.id) || 0), 0) / b.length;
-        if (avgA !== avgB) return avgA - avgB;
-        return Math.random() - 0.5;
-      });
-      const selected = [];
-      for (const unit of sorted) {
-        if (selected.length + unit.length <= 10) {
-          selected.push(...unit);
-        }
-        if (selected.length >= 10) break;
+    const futureRotations = data.rotations.filter((r) => r.rotation_number > rot);
+
+    if (mode === "equal_time" && activePlayers.length > 0) {
+      const maxGameSeconds = settings.equalTimeHours * 3600;
+      const oldDuration = rotationDurationRef.current;
+      const currentTotal = data.rotations.length;
+
+      const targetPlays = Math.max(Math.round(currentTotal * 10 / activePlayers.length), 1);
+      const newTotal = Math.max(Math.round(targetPlays * activePlayers.length / 10), rot);
+      const newDuration = Math.round(maxGameSeconds / newTotal);
+      const futureCount = newTotal - rot;
+
+      for (const rotation of futureRotations) {
+        await database.runAsync("DELETE FROM rotation_players WHERE rotation_id = ?", [rotation.id]);
+        await database.runAsync("DELETE FROM rotations WHERE id = ?", [rotation.id]);
       }
-      for (const p of selected) {
-        await addPlayerToRotation(rotation.id, p.id);
-        pastCounts.set(p.id, (pastCounts.get(p.id) || 0) + 1);
+
+      for (let i = 0; i < futureCount; i++) {
+        const rotNum = rot + 1 + i;
+        const rotId = await createRotation(gameId, rotNum);
+        const sorted = [...units].sort((a, b) => {
+          const avgA = a.reduce((s, p) => s + (pastCounts.get(p.id) || 0), 0) / a.length;
+          const avgB = b.reduce((s, p) => s + (pastCounts.get(p.id) || 0), 0) / b.length;
+          if (avgA !== avgB) return avgA - avgB;
+          return Math.random() - 0.5;
+        });
+        const selected = [];
+        for (const unit of sorted) {
+          if (selected.length + unit.length <= 10) {
+            selected.push(...unit);
+          }
+          if (selected.length >= 10) break;
+        }
+        for (const p of selected) {
+          await addPlayerToRotation(rotId, p.id);
+          pastCounts.set(p.id, (pastCounts.get(p.id) || 0) + 1);
+        }
+      }
+
+      if (newDuration !== oldDuration) {
+        const newRemaining = Math.max(Math.round(timeRemainingRef.current * newDuration / oldDuration), 1);
+        setTimeRemaining(newRemaining);
+        if (timerEndTimeRef.current) {
+          timerEndTimeRef.current = Date.now() + newRemaining * 1000;
+        }
+        setRotationDuration(newDuration);
+        rotationDurationRef.current = newDuration;
+        const newMinutesPerGame = newDuration / 60;
+        setMinutesPerGame(newMinutesPerGame);
+        minutesPerGameRef.current = newMinutesPerGame;
+      }
+    } else {
+      for (const rotation of futureRotations) {
+        await database.runAsync("DELETE FROM rotation_players WHERE rotation_id = ?", [rotation.id]);
+        const sorted = [...units].sort((a, b) => {
+          const avgA = a.reduce((s, p) => s + (pastCounts.get(p.id) || 0), 0) / a.length;
+          const avgB = b.reduce((s, p) => s + (pastCounts.get(p.id) || 0), 0) / b.length;
+          if (avgA !== avgB) return avgA - avgB;
+          return Math.random() - 0.5;
+        });
+        const selected = [];
+        for (const unit of sorted) {
+          if (selected.length + unit.length <= 10) {
+            selected.push(...unit);
+          }
+          if (selected.length >= 10) break;
+        }
+        for (const p of selected) {
+          await addPlayerToRotation(rotation.id, p.id);
+          pastCounts.set(p.id, (pastCounts.get(p.id) || 0) + 1);
+        }
       }
     }
 
@@ -305,6 +389,17 @@ export default function GameScreen() {
   };
 
   const handleRemovePlayer = (player) => {
+    const isOnCourt = gameStatus === "in_progress" &&
+      schedule[currentRotation - 1]?.players.some((p) => p.id === player.id);
+
+    if (isOnCourt) {
+      Alert.alert(
+        "Cannot Remove",
+        `${player.name} is currently playing on court. Wait until the rotation ends or bench the player first.`
+      );
+      return;
+    }
+
     Alert.alert(
       "Remove Player",
       `Permanently remove ${player.name} from the game?`,
@@ -424,7 +519,7 @@ export default function GameScreen() {
       {(gameStatus === "ready" || gameStatus === "in_progress") && (
         <TouchableOpacity
           style={s.manageBtn}
-          onPress={() => { if (isRunning) pauseTimer(); setShowManage(true); }}
+          onPress={() => setShowManage(true)}
           activeOpacity={0.8}
         >
           <Text style={s.manageBtnText}>Manage Players</Text>
@@ -438,23 +533,6 @@ export default function GameScreen() {
               <Text style={s.modalTitle}>Manage Players</Text>
               <TouchableOpacity onPress={() => { setShowManage(false); setLinkMode(false); setSelectedForLink([]); }}>
                 <Text style={s.modalClose}>Close</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={s.addRow}>
-              <TextInput
-                style={s.addInput}
-                placeholder="Late player name"
-                placeholderTextColor="#64748B"
-                value={newPlayerName}
-                onChangeText={setNewPlayerName}
-              />
-              <TouchableOpacity
-                style={[s.addBtn, newPlayerName.trim() ? s.addActive : s.addDisabled]}
-                onPress={handleAddLatePlayer}
-                disabled={!newPlayerName.trim()}
-              >
-                <Text style={s.addBtnText}>Add</Text>
               </TouchableOpacity>
             </View>
 

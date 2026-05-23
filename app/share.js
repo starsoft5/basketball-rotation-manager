@@ -1,9 +1,6 @@
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from "react-native";
-import * as Sharing from "expo-sharing";
 import { useState } from "react";
 import { checkLicense } from "../utils/license";
-
-const APP_NAME = "Basketball Rotation";
 
 async function shareApp(setSharing) {
   if (Platform.OS !== "android") {
@@ -20,19 +17,8 @@ async function shareApp(setSharing) {
       return;
     }
 
-    const { getApkPath } = require("../modules/apk-share");
-    const apkPath = await getApkPath();
-
-    const canShare = await Sharing.isAvailableAsync();
-    if (!canShare) {
-      Alert.alert("Error", "Sharing is not available on this device.");
-      return;
-    }
-
-    await Sharing.shareAsync("file://" + apkPath, {
-      mimeType: "application/vnd.android.package-archive",
-      dialogTitle: `Share ${APP_NAME}`,
-    });
+    const { shareApk } = require("../modules/apk-share");
+    await shareApk();
   } catch (e) {
     Alert.alert("Error", "Could not share the app: " + e.message);
   } finally {

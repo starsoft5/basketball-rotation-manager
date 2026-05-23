@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Slot } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, BackHandler } from "react-native";
 import { useRouter, usePathname } from "expo-router";
 import { checkLicense } from "../utils/license";
 
@@ -19,6 +19,12 @@ function Header() {
     if (confirmTimer.current) clearTimeout(confirmTimer.current);
   }, [pathname]);
 
+  useEffect(() => {
+    if (!isGame) return;
+    const handler = BackHandler.addEventListener("hardwareBackPress", () => true);
+    return () => handler.remove();
+  }, [isGame]);
+
   const handleBack = () => {
     if (isGame && !confirmBack) {
       setConfirmBack(true);
@@ -30,30 +36,34 @@ function Header() {
     router.back();
   };
 
+  const backLabel = isGame
+    ? (confirmBack ? "Click Again To Exit Current Game" : "← Back")
+    : pathname === "/setup" || pathname.startsWith("/players")
+      ? "← Back to Basketball Rotation Manager"
+      : "← Back";
+
   const titles = {
     "/": "Basketball Rotation Manager",
-    "/setup": "New Game Setup",
     "/history": "Game History",
     "/share": "Share App",
   };
 
-  const title =
-    titles[pathname] ||
-    (pathname.startsWith("/players") ? "Add Players" :
-     pathname.startsWith("/game") ? "Game" : "Basketball");
+  const title = titles[pathname] || null;
 
   return (
     <View style={s.header}>
       {!isHome && (
         <TouchableOpacity onPress={handleBack} style={s.backBtn}>
           <Text style={s.backText}>
-            {confirmBack ? "Click again to Back Game" : "← Back"}
+            {backLabel}
           </Text>
         </TouchableOpacity>
       )}
-      <Text style={[s.headerTitle, isHome && s.headerTitleCenter]}>
-        {title}
-      </Text>
+      {title && (
+        <Text style={[s.headerTitle, isHome && s.headerTitleCenter]}>
+          {title}
+        </Text>
+      )}
     </View>
   );
 }
@@ -120,16 +130,13 @@ const s = StyleSheet.create({
     paddingTop: 48,
     paddingBottom: 14,
     paddingHorizontal: 16,
-    flexDirection: "row",
-    alignItems: "center",
   },
-  backBtn: { marginRight: 8 },
-  backText: { color: "#FB923C", fontSize: 16, fontWeight: "600" },
+  backBtn: { marginBottom: 4 },
+  backText: { color: "#FB923C", fontSize: 14, fontWeight: "600" },
   headerTitle: {
     color: "#FB923C",
     fontSize: 18,
     fontWeight: "bold",
-    flex: 1,
   },
   headerTitleCenter: { textAlign: "center" },
   expiredContainer: {
