@@ -31,6 +31,8 @@ import {
   getSettings,
   getDatabase,
   createRotation,
+  updateGameEndTime,
+  updateGameBreakTime,
 } from "../../db/database";
 import { generateSchedule, generateScheduleEqualTime, calcRotations, calcRotationsEqualTime, formatTime } from "../../utils/scheduler";
 import RotationCard from "../../components/RotationCard";
@@ -49,6 +51,19 @@ export default function GameScreen() {
   const [rotationDuration, setRotationDuration] = useState(600);
   const [minutesPerGame, setMinutesPerGame] = useState(10);
 
+  const [gameEndTime, setGameEndTime] = useState(0);
+  const [isOnBreak, setIsOnBreak] = useState(false);
+  const [breakTime, setBreakTime] = useState(0);
+  const [endTimeWarning, setEndTimeWarning] = useState(false);
+  const [endTimeReached, setEndTimeReached] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  const [editEndHour, setEditEndHour] = useState("10");
+  const [editEndMinute, setEditEndMinute] = useState("00");
+  const [editEndAmPm, setEditEndAmPm] = useState("PM");
+
+  const [showBreakModal, setShowBreakModal] = useState(false);
+  const [breakModalPlayers, setBreakModalPlayers] = useState([]);
+  const [breakModalRotation, setBreakModalRotation] = useState(0);
   const [showManage, setShowManage] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState("");
   const [linkMode, setLinkMode] = useState(false);
@@ -63,6 +78,12 @@ export default function GameScreen() {
   const minutesPerGameRef = useRef(10);
   const timerEndTimeRef = useRef(null);
   const timeRemainingRef = useRef(600);
+  const gameEndTimeRef = useRef(0);
+  const breakTimerRef = useRef(null);
+  const breakTimeRef = useRef(0);
+  const breakStartRef = useRef(null);
+  const endTimeAlertShownRef = useRef(false);
+  const startTimerRef = useRef(null);
 
   useEffect(() => { currentRotationRef.current = currentRotation; }, [currentRotation]);
   useEffect(() => { scheduleRef.current = schedule; }, [schedule]);
@@ -70,6 +91,8 @@ export default function GameScreen() {
   useEffect(() => { rotationDurationRef.current = rotationDuration; }, [rotationDuration]);
   useEffect(() => { minutesPerGameRef.current = minutesPerGame; }, [minutesPerGame]);
   useEffect(() => { timeRemainingRef.current = timeRemaining; }, [timeRemaining]);
+  useEffect(() => { gameEndTimeRef.current = gameEndTime; }, [gameEndTime]);
+  useEffect(() => { breakTimeRef.current = breakTime; }, [breakTime]);
 
   useEffect(() => {
     loadGame();
@@ -97,17 +120,28 @@ export default function GameScreen() {
       backHandler.remove();
       appStateListener.remove();
       if (timerRef.current) clearInterval(timerRef.current);
+      if (breakTimerRef.current) clearInterval(breakTimerRef.current);
     };
   }, []);
 
   const loadGame = async () => {
     const settings = await getSettings();
     const mode = settings.distributionMode;
-    const maxGameMinutes = (mode === "equal_time" ? settings.equalTimeHours : settings.gameHours) * 60;
+    const maxGameMinutes = mode === "equal_time" ? settings.equalTimeTotalMinutes : settings.gameTotalMinutes;
 
     const data = await getFullGameData(gameId);
     if (!data) return;
     setGameData(data);
+
+    if (data.game.break_time_seconds && data.game.break_time_seconds > 0) {
+      setBreakTime(data.game.break_time_seconds);
+      breakTimeRef.current = data.game.break_time_seconds;
+    }
+
+    if (data.game.game_end_time && data.game.game_end_time > 0) {
+      setGameEndTime(data.game.game_end_time);
+      gameEndTimeRef.current = data.game.game_end_time;
+    }
 
     let minsPerGame, duration;
     if (mode === "equal_time" && data.players.length > 0) {
@@ -171,6 +205,9 @@ export default function GameScreen() {
       return;
     }
 
+    const endT = gameEndTimeRef.current;
+    const pastEndTime = endT && endT > 0 && Date.now() >= endT;
+
     const nextRotation = rot + 1;
     setCurrentRotation(nextRotation);
     await updateGameRotation(gameId, nextRotation);
@@ -186,14 +223,61 @@ export default function GameScreen() {
       .map((p) => p.name)
       .join(", ");
 
-    Alert.alert(
-      `Rotation ${rot} Complete!`,
-      `Rotation ${nextRotation} is up next.\n\nPlayers: ${nextPlayers}`,
-      [
-        { text: "Start Next", onPress: () => startTimer() },
-        { text: "Wait", style: "cancel" },
-      ]
-    );
+    if (pastEndTime) {
+      const remaining = sched.length - nextRotation + 1;
+      Alert.alert(
+        "Time's Up!",
+        `End time has been reached.\n\n${remaining} rotation${remaining !== 1 ? "s" : ""} remaining.\n\nEnd the game or continue playing?`,
+        [
+          {
+            text: "End Game",
+            style: "destructive",
+            onPress: async () => {
+              setGameStatus("completed");
+              await updateGameStatus(gameId, "completed");
+              Alert.alert("Game Over!", `Game ended after ${rot} rotation${rot !== 1 ? "s" : ""}.`, [
+                { text: "Go Home", onPress: () => router.replace("/") },
+              ]);
+            },
+          },
+          {
+            text: "Extend 15 min",
+            onPress: async () => {
+              const newEnd = Date.now() + 15 * 60 * 1000;
+              setGameEndTime(newEnd);
+              gameEndTimeRef.current = newEnd;
+              setEndTimeReached(false);
+              setEndTimeWarning(false);
+              endTimeAlertShownRef.current = false;
+              try { await updateGameEndTime(gameId, newEnd); } catch (e) {}
+              if (startTimerRef.current) startTimerRef.current();
+            },
+          },
+          {
+            text: "Continue",
+            onPress: () => { if (startTimerRef.current) startTimerRef.current(); },
+          },
+        ]
+      );
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      timerEndTimeRef.current = null;
+      setIsRunning(false);
+      setIsOnBreak(true);
+      breakStartRef.current = Date.now();
+      const accumulatedAtStart = breakTimeRef.current;
+      breakTimerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - breakStartRef.current) / 1000);
+        setBreakTime(accumulatedAtStart + elapsed);
+      }, 1000);
+      const nextPlayersList = sched[nextRotation - 1]?.players || [];
+      setBreakModalPlayers(nextPlayersList);
+      setBreakModalRotation(nextRotation);
+      setShowBreakModal(true);
+    }
   }, [gameId]);
 
   const startTimer = useCallback(() => {
@@ -205,6 +289,62 @@ export default function GameScreen() {
     timerRef.current = setInterval(() => {
       const now = Date.now();
       const remaining = Math.round((timerEndTimeRef.current - now) / 1000);
+
+      const endT = gameEndTimeRef.current;
+      if (endT && endT > 0) {
+        const untilEnd = endT - now;
+        if (untilEnd <= 300000 && untilEnd > 0) {
+          setEndTimeWarning(true);
+        }
+        if (untilEnd <= 0 && !endTimeAlertShownRef.current) {
+          setEndTimeReached(true);
+          endTimeAlertShownRef.current = true;
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+          setIsRunning(false);
+          const rot = currentRotationRef.current;
+          const sched = scheduleRef.current;
+          const left = sched.length - rot;
+          Alert.alert(
+            "Time's Up!",
+            `End time has been reached.\n\nCurrently on rotation ${rot} of ${sched.length}.\n${left} rotation${left !== 1 ? "s" : ""} remaining.\n\nEnd the game or continue playing?`,
+            [
+              {
+                text: "End Game",
+                style: "destructive",
+                onPress: async () => {
+                  setGameStatus("completed");
+                  await updateGameStatus(gameId, "completed");
+                  Alert.alert("Game Over!", `Game ended after rotation ${rot}.`, [
+                    { text: "Go Home", onPress: () => router.replace("/") },
+                  ]);
+                },
+              },
+              {
+                text: "Extend 15 min",
+                onPress: async () => {
+                  const newEnd = Date.now() + 15 * 60 * 1000;
+                  setGameEndTime(newEnd);
+                  gameEndTimeRef.current = newEnd;
+                  setEndTimeReached(false);
+                  setEndTimeWarning(false);
+                  endTimeAlertShownRef.current = false;
+                  try { await updateGameEndTime(gameId, newEnd); } catch (e) {}
+                  if (startTimerRef.current) startTimerRef.current();
+                },
+              },
+              {
+                text: "Continue",
+                onPress: () => {
+                  if (startTimerRef.current) startTimerRef.current();
+                },
+              },
+            ]
+          );
+          return;
+        }
+      }
+
       if (remaining <= 0) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -219,6 +359,8 @@ export default function GameScreen() {
     setIsRunning(true);
   }, [handleRotationEnd]);
 
+  useEffect(() => { startTimerRef.current = startTimer; }, [startTimer]);
+
   const pauseTimer = useCallback(() => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -228,16 +370,145 @@ export default function GameScreen() {
     setIsRunning(false);
   }, []);
 
-  const handleStartGame = async () => {
-    setGameStatus("in_progress");
-    await updateGameStatus(gameId, "in_progress");
-    setCurrentRotation(1);
-    await updateGameRotation(gameId, 1);
-    if (schedule.length > 0) {
-      await updateRotationStatus(schedule[0].id, "active");
+  const startBreak = useCallback(() => {
+    pauseTimer();
+    setIsOnBreak(true);
+    breakStartRef.current = Date.now();
+    const accumulatedAtStart = breakTimeRef.current;
+    breakTimerRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - breakStartRef.current) / 1000);
+      setBreakTime(accumulatedAtStart + elapsed);
+    }, 1000);
+  }, [pauseTimer]);
+
+  const endBreak = useCallback(async () => {
+    if (breakTimerRef.current) {
+      clearInterval(breakTimerRef.current);
+      breakTimerRef.current = null;
     }
+    if (breakStartRef.current) {
+      const elapsed = Math.floor((Date.now() - breakStartRef.current) / 1000);
+      const newBreakTotal = breakTimeRef.current + elapsed;
+      setBreakTime(newBreakTotal);
+      breakTimeRef.current = newBreakTotal;
+      breakStartRef.current = null;
+      try { await updateGameBreakTime(gameId, newBreakTotal); } catch (e) {}
+    }
+    setIsOnBreak(false);
+    await adjustRotationsForEndTime();
     startTimer();
-    scrollToRotation(0);
+  }, [gameId, startTimer]);
+
+  const adjustRotationsForEndTime = useCallback(async () => {
+    const endTime = gameEndTimeRef.current;
+    if (!endTime || endTime <= 0) return;
+
+    const settings = await getSettings();
+    const mode = settings.distributionMode;
+
+    if (mode === "unequal_games") return;
+
+    const now = Date.now();
+    const timeLeftSeconds = Math.max(0, Math.floor((endTime - now) / 1000));
+    const rot = currentRotationRef.current;
+    const sched = scheduleRef.current;
+    const remainingCount = sched.length - rot;
+
+    if (remainingCount <= 0) return;
+
+    const currentTimeLeft = timeRemainingRef.current;
+    const futurePlayTime = (remainingCount - 1) * rotationDurationRef.current + currentTimeLeft;
+
+    if (futurePlayTime <= timeLeftSeconds) return;
+
+    const availableForFuture = Math.max(0, timeLeftSeconds - currentTimeLeft);
+    const futureRotations = remainingCount - 1;
+
+    if (futureRotations <= 0) return;
+
+    let newDuration = Math.floor(availableForFuture / futureRotations);
+    const MIN_ROTATION = 180;
+
+    if (newDuration < MIN_ROTATION) newDuration = MIN_ROTATION;
+
+    if (newDuration !== rotationDurationRef.current) {
+      setRotationDuration(newDuration);
+      rotationDurationRef.current = newDuration;
+      const newMinutes = newDuration / 60;
+      setMinutesPerGame(newMinutes);
+      minutesPerGameRef.current = newMinutes;
+
+      const adjustedMins = Math.round(newDuration / 60 * 10) / 10;
+      Alert.alert(
+        "Schedule Adjusted",
+        `Rotation time adjusted to ${adjustedMins} min to finish on time.`
+      );
+    }
+  }, [gameId]);
+
+  const handleEndTimeEdit = useCallback(async (newEndTimeMs) => {
+    setGameEndTime(newEndTimeMs);
+    gameEndTimeRef.current = newEndTimeMs;
+    try { await updateGameEndTime(gameId, newEndTimeMs); } catch (e) {}
+    await adjustRotationsForEndTime();
+  }, [gameId, adjustRotationsForEndTime]);
+
+  const openEndTimePicker = useCallback(() => {
+    const endDate = new Date(gameEndTimeRef.current || Date.now() + 3600000);
+    let hours = endDate.getHours();
+    const minutes = endDate.getMinutes();
+    const amPm = hours >= 12 ? "PM" : "AM";
+    if (hours > 12) hours -= 12;
+    if (hours === 0) hours = 12;
+    setEditEndHour(String(hours));
+    setEditEndMinute(String(minutes).padStart(2, "0"));
+    setEditEndAmPm(amPm);
+    setShowEndTimePicker(true);
+  }, []);
+
+  const saveEndTime = useCallback(async () => {
+    let hours = parseInt(editEndHour, 10);
+    const minutes = parseInt(editEndMinute, 10);
+    if (isNaN(hours) || hours < 1 || hours > 12 || isNaN(minutes) || minutes < 0 || minutes > 59) {
+      Alert.alert("Invalid", "Please enter a valid time.");
+      return;
+    }
+    if (editEndAmPm === "PM" && hours !== 12) hours += 12;
+    if (editEndAmPm === "AM" && hours === 12) hours = 0;
+
+    const now = new Date();
+    const endDate = new Date(now);
+    endDate.setHours(hours, minutes, 0, 0);
+    if (endDate.getTime() <= Date.now()) {
+      endDate.setDate(endDate.getDate() + 1);
+    }
+
+    setShowEndTimePicker(false);
+    await handleEndTimeEdit(endDate.getTime());
+  }, [editEndHour, editEndMinute, editEndAmPm, handleEndTimeEdit]);
+
+  const handleStartGame = async () => {
+    try {
+      const settings = await getSettings();
+      const mode = settings.distributionMode;
+      const totalMinutes = mode === "equal_time" ? settings.equalTimeTotalMinutes : settings.gameTotalMinutes;
+      const endTime = Date.now() + totalMinutes * 60 * 1000;
+      setGameEndTime(endTime);
+      gameEndTimeRef.current = endTime;
+      try { await updateGameEndTime(gameId, endTime); } catch (e) {}
+
+      setGameStatus("in_progress");
+      await updateGameStatus(gameId, "in_progress");
+      setCurrentRotation(1);
+      await updateGameRotation(gameId, 1);
+      if (schedule.length > 0) {
+        await updateRotationStatus(schedule[0].id, "active");
+      }
+      startTimer();
+      scrollToRotation(0);
+    } catch (error) {
+      Alert.alert("Error", "Failed to start game: " + error.message);
+    }
   };
 
   const scrollToRotation = (index) => {
@@ -281,7 +552,7 @@ export default function GameScreen() {
     const futureRotations = data.rotations.filter((r) => r.rotation_number > rot);
 
     if (mode === "equal_time" && activePlayers.length > 0) {
-      const maxGameSeconds = settings.equalTimeHours * 3600;
+      const maxGameSeconds = settings.equalTimeTotalMinutes * 60;
       const oldDuration = rotationDurationRef.current;
       const currentTotal = data.rotations.length;
 
@@ -435,6 +706,9 @@ export default function GameScreen() {
 
   const elapsed = (currentRotation - 1) * rotationDuration + (rotationDuration - timeRemaining);
   const totalGameTime = formatTime(Math.max(elapsed, 0));
+  const endTimeDisplay = gameEndTime > 0
+    ? new Date(gameEndTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : "--:--";
   const progress =
     gameStatus === "in_progress"
       ? ((currentRotation - 1) / schedule.length) * 100 +
@@ -471,19 +745,39 @@ export default function GameScreen() {
 
         <View style={s.statsRow}>
           <View style={s.stat}>
-            <Text style={s.statLabel}>Elapsed</Text>
+            <Text style={s.statLabel}>Play Time</Text>
             <Text style={s.statValue}>{totalGameTime}</Text>
           </View>
-          <View style={s.stat}>
-            <Text style={s.statLabel}>Players</Text>
-            <Text style={s.statValue}>{gameData.players.length}</Text>
-          </View>
+          {breakTime > 0 && (
+            <View style={s.stat}>
+              <Text style={s.statLabel}>Breaks</Text>
+              <Text style={[s.statValue, { color: "#FBBF24" }]}>{formatTime(breakTime)}</Text>
+            </View>
+          )}
           <View style={s.stat}>
             <Text style={s.statLabel}>Rotations</Text>
             <Text style={s.statValue}>
               {gameStatus === "completed" ? schedule.length : Math.max(currentRotation - 1, 0)}/{schedule.length}
             </Text>
           </View>
+          {gameEndTime > 0 && (
+            <TouchableOpacity
+              style={s.stat}
+              onPress={gameStatus === "in_progress" ? openEndTimePicker : undefined}
+              activeOpacity={gameStatus === "in_progress" ? 0.6 : 1}
+            >
+              <Text style={s.statLabel}>Ends At</Text>
+              <Text style={[
+                s.statValue,
+                gameStatus === "in_progress" && { color: "#FB923C" },
+                endTimeWarning && { color: "#EF4444" },
+                endTimeReached && { color: "#DC2626" },
+              ]}>
+                {endTimeDisplay}
+              </Text>
+              {gameStatus === "in_progress" && !endTimeReached && <Text style={s.editHint}>tap to edit</Text>}
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={s.btnRow}>
@@ -492,28 +786,53 @@ export default function GameScreen() {
               <Text style={s.btnText}>Start Game</Text>
             </TouchableOpacity>
           ) : gameStatus === "in_progress" ? (
-            <>
+            isOnBreak ? (
               <TouchableOpacity
-                style={[s.btn, s.btnHalf, isRunning ? s.btnYellow : s.btnGreen]}
-                onPress={isRunning ? pauseTimer : startTimer}
+                style={[s.btn, s.btnGreen]}
+                onPress={endBreak}
                 activeOpacity={0.8}
               >
-                <Text style={s.btnText}>{isRunning ? "Pause" : "Resume"}</Text>
+                <Text style={s.btnText}>End Break & Resume</Text>
               </TouchableOpacity>
+            ) : (
               <TouchableOpacity
-                style={[s.btn, s.btnHalf, s.btnBlue]}
-                onPress={() => { pauseTimer(); setTimeRemaining(0); handleRotationEnd(); }}
+                style={[s.btn, isRunning ? s.btnRed : s.btnGreen]}
+                onPress={isRunning ? startBreak : startTimer}
                 activeOpacity={0.8}
               >
-                <Text style={s.btnText}>Skip →</Text>
+                <Text style={s.btnText}>{isRunning ? "Break" : "Resume"}</Text>
               </TouchableOpacity>
-            </>
+            )
           ) : (
             <TouchableOpacity style={[s.btn, s.btnOrange]} onPress={() => router.replace("/")} activeOpacity={0.8}>
               <Text style={s.btnText}>Back to Home</Text>
             </TouchableOpacity>
           )}
         </View>
+
+        {isOnBreak && (
+          <View style={s.breakBanner}>
+            <Text style={s.breakBannerText}>BREAK — {formatTime(breakTime)}</Text>
+            <TouchableOpacity onPress={openEndTimePicker} activeOpacity={0.7}>
+              <Text style={s.breakEditEnd}>Edit End Time</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!isOnBreak && endTimeWarning && !endTimeReached && gameStatus === "in_progress" && (
+          <View style={s.warningBanner}>
+            <Text style={s.warningBannerText}>Less than 5 minutes until end time</Text>
+          </View>
+        )}
+
+        {endTimeReached && gameStatus === "in_progress" && (
+          <View style={s.overtimeBanner}>
+            <Text style={s.overtimeBannerText}>OVERTIME — Past end time</Text>
+            <TouchableOpacity onPress={openEndTimePicker} activeOpacity={0.7}>
+              <Text style={s.breakEditEnd}>Extend</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       {(gameStatus === "ready" || gameStatus === "in_progress") && (
@@ -667,6 +986,92 @@ export default function GameScreen() {
         </View>
       </Modal>
 
+      <Modal visible={showEndTimePicker} animationType="fade" transparent>
+        <View style={s.etOverlay}>
+          <View style={s.etContent}>
+            <Text style={s.etTitle}>Edit End Time</Text>
+            <View style={s.etRow}>
+              <TextInput
+                style={s.etInput}
+                value={editEndHour}
+                onChangeText={setEditEndHour}
+                keyboardType="number-pad"
+                maxLength={2}
+                placeholderTextColor="#64748B"
+              />
+              <Text style={s.etColon}>:</Text>
+              <TextInput
+                style={s.etInput}
+                value={editEndMinute}
+                onChangeText={setEditEndMinute}
+                keyboardType="number-pad"
+                maxLength={2}
+                placeholderTextColor="#64748B"
+              />
+              <TouchableOpacity
+                style={s.etAmPm}
+                onPress={() => setEditEndAmPm((p) => p === "AM" ? "PM" : "AM")}
+                activeOpacity={0.7}
+              >
+                <Text style={s.etAmPmText}>{editEndAmPm}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={s.etBtnRow}>
+              <TouchableOpacity
+                style={s.etCancelBtn}
+                onPress={() => setShowEndTimePicker(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={s.etCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.etSaveBtn}
+                onPress={saveEndTime}
+                activeOpacity={0.8}
+              >
+                <Text style={s.etSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showBreakModal} animationType="fade" transparent>
+        <View style={s.etOverlay}>
+          <View style={s.etContent}>
+            <Text style={s.etTitle}>Rotation {breakModalRotation} — Next Players</Text>
+            <View style={s.breakPlayerList}>
+              {breakModalPlayers.map((p, i) => (
+                <View key={p.id} style={s.breakPlayerRow}>
+                  <Text style={s.breakPlayerNum}>{i + 1}.</Text>
+                  <Text style={s.breakPlayerName}>{p.name}</Text>
+                  {p.jersey_number != null && (
+                    <Text style={s.breakPlayerJersey}>#{p.jersey_number}</Text>
+                  )}
+                </View>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={{
+                backgroundColor: "#16A34A",
+                paddingVertical: 14,
+                borderRadius: 12,
+                marginTop: 20,
+              }}
+              onPress={() => {
+                setShowBreakModal(false);
+                endBreak();
+              }}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: "#FFF", textAlign: "center", fontWeight: "bold", fontSize: 16 }}>
+                End Break & Resume
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <FlatList
         ref={flatListRef}
         data={schedule}
@@ -715,9 +1120,11 @@ const s = StyleSheet.create({
   btnRow: { flexDirection: "row", gap: 12 },
   btn: { flex: 1, paddingVertical: 12, borderRadius: 12 },
   btnHalf: { flex: 1 },
+  btnThird: { flex: 1 },
   btnGreen: { backgroundColor: "#16A34A" },
   btnYellow: { backgroundColor: "#CA8A04" },
   btnBlue: { backgroundColor: "#2563EB" },
+  btnRed: { backgroundColor: "#DC2626" },
   btnOrange: { backgroundColor: "#F97316" },
   btnText: { color: "#FFF", textAlign: "center", fontWeight: "bold", fontSize: 16 },
   manageBtn: {
@@ -796,6 +1203,100 @@ const s = StyleSheet.create({
   cancelBtnText: { color: "#94A3B8", fontWeight: "bold", fontSize: 13 },
   groupBadge: { backgroundColor: "#FB923C", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 },
   groupBadgeText: { color: "#FFF", fontSize: 10, fontWeight: "bold" },
+  editHint: { color: "#FB923C", fontSize: 9, marginTop: 1 },
+  breakBanner: {
+    backgroundColor: "#7F1D1D",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  breakBannerText: { color: "#FCA5A5", fontWeight: "bold", fontSize: 15 },
+  breakEditEnd: { color: "#FB923C", fontWeight: "bold", fontSize: 13 },
+  warningBanner: {
+    backgroundColor: "#78350F",
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    alignItems: "center",
+  },
+  warningBannerText: { color: "#FDE68A", fontWeight: "bold", fontSize: 13 },
+  overtimeBanner: {
+    backgroundColor: "#7F1D1D",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  overtimeBannerText: { color: "#FCA5A5", fontWeight: "bold", fontSize: 14 },
+  etOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  etContent: {
+    backgroundColor: "#1E293B",
+    borderRadius: 16,
+    padding: 24,
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#475569",
+  },
+  etTitle: { color: "#FFF", fontSize: 20, fontWeight: "bold", textAlign: "center", marginBottom: 24 },
+  etRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8, marginBottom: 24 },
+  etInput: {
+    backgroundColor: "#0F172A",
+    color: "#FFF",
+    fontSize: 28,
+    fontWeight: "bold",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#475569",
+    textAlign: "center",
+    width: 70,
+  },
+  etColon: { color: "#FFF", fontSize: 28, fontWeight: "bold" },
+  etAmPm: {
+    backgroundColor: "#F97316",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  etAmPmText: { color: "#FFF", fontSize: 18, fontWeight: "bold" },
+  etBtnRow: { flexDirection: "row", gap: 12 },
+  etCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#334155",
+    borderWidth: 1,
+    borderColor: "#475569",
+  },
+  etCancelText: { color: "#94A3B8", textAlign: "center", fontWeight: "bold", fontSize: 16 },
+  etSaveBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#F97316",
+  },
+  etSaveText: { color: "#FFF", textAlign: "center", fontWeight: "bold", fontSize: 16 },
+  breakPlayerList: { marginBottom: 4 },
+  breakPlayerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
+  },
+  breakPlayerNum: { color: "#94A3B8", fontSize: 16, width: 30 },
+  breakPlayerName: { color: "#FFF", fontSize: 16, fontWeight: "600", flex: 1 },
+  breakPlayerJersey: { color: "#F59E0B", fontSize: 14, fontWeight: "bold" },
   list: { flex: 1 },
   listContent: { padding: 16 },
 });

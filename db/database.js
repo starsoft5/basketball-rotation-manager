@@ -18,6 +18,12 @@ async function initializeDatabase(database) {
   try {
     await database.runAsync("ALTER TABLE players ADD COLUMN friend_group INTEGER DEFAULT NULL");
   } catch (e) {}
+  try {
+    await database.runAsync("ALTER TABLE games ADD COLUMN game_end_time INTEGER DEFAULT 0");
+  } catch (e) {}
+  try {
+    await database.runAsync("ALTER TABLE games ADD COLUMN break_time_seconds INTEGER DEFAULT 0");
+  } catch (e) {}
 
   await database.execAsync(`
     CREATE TABLE IF NOT EXISTS games (
@@ -76,6 +82,9 @@ async function initializeDatabase(database) {
   }
   await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('distribution_mode', 'unequal_games')");
   await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('equal_time_hours', '2')");
+  await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('game_total_minutes', '120')");
+  await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('equal_time_total_minutes', '120')");
+  await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('transition_minutes', '2')");
 }
 
 export async function createGame(name, totalPlayers) {
@@ -267,10 +276,15 @@ export async function getSettings() {
   for (const row of rows) {
     settings[row.key] = row.value;
   }
+  const gameHours = parseInt(settings.game_hours || "2", 10);
+  const equalTimeHours = parseInt(settings.equal_time_hours || "2", 10);
   return {
-    gameHours: parseInt(settings.game_hours || "2", 10),
-    equalTimeHours: parseInt(settings.equal_time_hours || "2", 10),
+    gameHours,
+    equalTimeHours,
+    gameTotalMinutes: parseInt(settings.game_total_minutes || String(gameHours * 60), 10),
+    equalTimeTotalMinutes: parseInt(settings.equal_time_total_minutes || String(equalTimeHours * 60), 10),
     minutesPerGame: parseInt(settings.minutes_per_game || "10", 10),
+    transitionMinutes: parseInt(settings.transition_minutes || "2", 10),
     distributionMode: settings.distribution_mode || "unequal_games",
   };
 }
@@ -281,6 +295,16 @@ export async function saveSetting(key, value) {
     "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
     [key, String(value)]
   );
+}
+
+export async function updateGameEndTime(gameId, endTimeMs) {
+  const database = await getDatabase();
+  await database.runAsync("UPDATE games SET game_end_time = ? WHERE id = ?", [endTimeMs, gameId]);
+}
+
+export async function updateGameBreakTime(gameId, breakTimeSeconds) {
+  const database = await getDatabase();
+  await database.runAsync("UPDATE games SET break_time_seconds = ? WHERE id = ?", [breakTimeSeconds, gameId]);
 }
 
 export async function getFullGameData(gameId) {

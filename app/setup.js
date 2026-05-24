@@ -17,14 +17,18 @@ import { createGame, getSettings, saveSetting } from "../db/database";
 export default function SetupScreen() {
   const router = useRouter();
   const [gameName, setGameName] = useState("");
-  const [gameHours, setGameHours] = useState(2);
-  const [equalTimeHours, setEqualTimeHours] = useState(2);
+  const [gameTotalMinutes, setGameTotalMinutes] = useState(120);
+  const [equalTimeTotalMinutes, setEqualTimeTotalMinutes] = useState(120);
   const [minutesPerGame, setMinutesPerGame] = useState(10);
   const [distributionMode, setDistributionMode] = useState("unequal_games");
   const [showSettings, setShowSettings] = useState(false);
   const [editHours, setEditHours] = useState("2");
+  const [editMins, setEditMins] = useState(0);
   const [editEqualTimeHours, setEditEqualTimeHours] = useState("2");
+  const [editEqualTimeMins, setEditEqualTimeMins] = useState(0);
   const [editMinutes, setEditMinutes] = useState("10");
+  const [transitionMinutes, setTransitionMinutes] = useState(2);
+  const [editTransition, setEditTransition] = useState("2");
 
   useEffect(() => {
     loadSettings();
@@ -32,19 +36,26 @@ export default function SetupScreen() {
 
   const loadSettings = async () => {
     const settings = await getSettings();
-    setGameHours(settings.gameHours);
-    setEqualTimeHours(settings.equalTimeHours);
+    setGameTotalMinutes(settings.gameTotalMinutes);
+    setEqualTimeTotalMinutes(settings.equalTimeTotalMinutes);
     setMinutesPerGame(settings.minutesPerGame);
+    setTransitionMinutes(settings.transitionMinutes);
     setDistributionMode(settings.distributionMode);
-    setEditHours(String(settings.gameHours));
-    setEditEqualTimeHours(String(settings.equalTimeHours));
+    setEditHours(String(Math.floor(settings.gameTotalMinutes / 60)));
+    setEditMins(settings.gameTotalMinutes % 60);
+    setEditEqualTimeHours(String(Math.floor(settings.equalTimeTotalMinutes / 60)));
+    setEditEqualTimeMins(settings.equalTimeTotalMinutes % 60);
     setEditMinutes(String(settings.minutesPerGame));
+    setEditTransition(String(settings.transitionMinutes));
   };
 
   const handleOpenSettings = () => {
-    setEditHours(String(gameHours));
-    setEditEqualTimeHours(String(equalTimeHours));
+    setEditHours(String(Math.floor(gameTotalMinutes / 60)));
+    setEditMins(gameTotalMinutes % 60);
+    setEditEqualTimeHours(String(Math.floor(equalTimeTotalMinutes / 60)));
+    setEditEqualTimeMins(equalTimeTotalMinutes % 60);
     setEditMinutes(String(minutesPerGame));
+    setEditTransition(String(transitionMinutes));
     setShowSettings(true);
   };
 
@@ -52,29 +63,47 @@ export default function SetupScreen() {
     const h = parseInt(editHours, 10);
     const eqH = parseInt(editEqualTimeHours, 10);
     const m = parseInt(editMinutes, 10);
-    if (isNaN(h) || h < 1 || h > 10) {
-      Alert.alert("Invalid", "Flexible Rotations hours must be between 1 and 10.");
+    if (isNaN(h) || h < 0 || h > 10) {
+      Alert.alert("Invalid", "Hours must be between 0 and 10.");
       return;
     }
-    if (isNaN(eqH) || eqH < 1 || eqH > 10) {
-      Alert.alert("Invalid", "Equal Playing Time hours must be between 1 and 10.");
+    const gameTotal = h * 60 + editMins;
+    if (gameTotal < 15) {
+      Alert.alert("Invalid", "Flexible Rotations total time must be at least 15 minutes.");
+      return;
+    }
+    if (isNaN(eqH) || eqH < 0 || eqH > 10) {
+      Alert.alert("Invalid", "Hours must be between 0 and 10.");
+      return;
+    }
+    const eqTotal = eqH * 60 + editEqualTimeMins;
+    if (eqTotal < 15) {
+      Alert.alert("Invalid", "Equal Playing Time total must be at least 15 minutes.");
       return;
     }
     if (isNaN(m) || m < 1 || m > 60) {
       Alert.alert("Invalid", "Minutes per game must be between 1 and 60.");
       return;
     }
-    const totalMinutes = h * 60;
-    if (m > totalMinutes) {
+    if (m > gameTotal) {
       Alert.alert("Invalid", "Minutes per game cannot exceed Flexible Rotations total time.");
       return;
     }
-    await saveSetting("game_hours", h);
-    await saveSetting("equal_time_hours", eqH);
+    const t = parseInt(editTransition, 10);
+    if (isNaN(t) || t < 0 || t > 10) {
+      Alert.alert("Invalid", "Transition time must be between 0 and 10 minutes.");
+      return;
+    }
+    await saveSetting("game_total_minutes", gameTotal);
+    await saveSetting("equal_time_total_minutes", eqTotal);
+    await saveSetting("game_hours", Math.floor(gameTotal / 60));
+    await saveSetting("equal_time_hours", Math.floor(eqTotal / 60));
     await saveSetting("minutes_per_game", m);
-    setGameHours(h);
-    setEqualTimeHours(eqH);
+    await saveSetting("transition_minutes", t);
+    setGameTotalMinutes(gameTotal);
+    setEqualTimeTotalMinutes(eqTotal);
     setMinutesPerGame(m);
+    setTransitionMinutes(t);
     setShowSettings(false);
     Alert.alert("Saved", "Game duration settings updated.");
   };
@@ -98,9 +127,10 @@ export default function SetupScreen() {
     }
   };
 
-  const activeHours = distributionMode === "equal_time" ? equalTimeHours : gameHours;
-  const totalMinutes = activeHours * 60;
-  const totalRotations = Math.floor(totalMinutes / minutesPerGame);
+  const activeTotalMinutes = distributionMode === "equal_time" ? equalTimeTotalMinutes : gameTotalMinutes;
+  const activeHours = Math.floor(activeTotalMinutes / 60);
+  const activeRemainingMins = activeTotalMinutes % 60;
+  const totalRotations = Math.floor(activeTotalMinutes / minutesPerGame);
 
   return (
     <KeyboardAvoidingView
@@ -116,7 +146,7 @@ export default function SetupScreen() {
         </View>
 
         <View style={s.field}>
-          <Text style={s.label}>Game Name</Text>
+          <Text style={s.label}>Game Name <Text style={{ color: "#EF4444" }}>(Required)</Text></Text>
           <TextInput
             style={s.input}
             placeholder="e.g., Sunday Pickup Game"
@@ -169,7 +199,7 @@ export default function SetupScreen() {
         <View style={s.infoCard}>
           <Text style={s.infoTitle}>Rotation Info</Text>
           <Text style={s.infoText}>
-            {"• "}{activeHours} hour{activeHours !== 1 ? "s" : ""} total ({totalMinutes} min){"\n"}
+            {"• "}{activeHours}h {activeRemainingMins > 0 ? `${activeRemainingMins}m` : ""} total ({activeTotalMinutes} min){"\n"}
             {distributionMode === "unequal_games"
               ? `• ${minutesPerGame} min per rotation — ${totalRotations} rotation${totalRotations !== 1 ? "s" : ""} total`
               : "• Rotation duration auto-calculated per player count"}{"\n"}
@@ -199,23 +229,45 @@ export default function SetupScreen() {
             {distributionMode === "equal_time" ? (
               <>
                 <View style={s.settingsField}>
-                  <Text style={s.settingsLabel}>Total Hours of Playing Time</Text>
-                  <TextInput
-                    style={s.settingsInput}
-                    value={editEqualTimeHours}
-                    onChangeText={setEditEqualTimeHours}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    placeholderTextColor="#64748B"
-                  />
+                  <Text style={s.settingsLabel}>Total Playing Time</Text>
+                  <View style={s.durationRow}>
+                    <View style={s.durationItem}>
+                      <TextInput
+                        style={s.settingsInput}
+                        value={editEqualTimeHours}
+                        onChangeText={setEditEqualTimeHours}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        placeholderTextColor="#64748B"
+                      />
+                      <Text style={s.durationLabel}>hours</Text>
+                    </View>
+                    <View style={s.durationItem}>
+                      <View style={s.minsBtnRow}>
+                        {[0, 15, 30, 45].map((m) => (
+                          <TouchableOpacity
+                            key={m}
+                            style={[s.minsBtn, editEqualTimeMins === m && s.minsBtnActive]}
+                            onPress={() => setEditEqualTimeMins(m)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[s.minsBtnText, editEqualTimeMins === m && s.minsBtnTextActive]}>{m}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                      <Text style={s.durationLabel}>minutes</Text>
+                    </View>
+                  </View>
                 </View>
 
                 <View style={s.previewCard}>
                   <Text style={s.previewText}>
                     {(() => {
                       const eqH = parseInt(editEqualTimeHours, 10) || 0;
-                      const total = eqH * 60;
-                      return `${total} min total — equal time per player`;
+                      const total = eqH * 60 + editEqualTimeMins;
+                      const t = parseInt(editTransition, 10) || 0;
+                      const note = t > 0 ? ` (incl. transition time)` : "";
+                      return `${total} min total — equal time per player${note}`;
                     })()}
                   </Text>
                 </View>
@@ -223,15 +275,35 @@ export default function SetupScreen() {
             ) : (
               <>
                 <View style={s.settingsField}>
-                  <Text style={s.settingsLabel}>Total Hours of Playing Time</Text>
-                  <TextInput
-                    style={s.settingsInput}
-                    value={editHours}
-                    onChangeText={setEditHours}
-                    keyboardType="number-pad"
-                    maxLength={2}
-                    placeholderTextColor="#64748B"
-                  />
+                  <Text style={s.settingsLabel}>Total Playing Time</Text>
+                  <View style={s.durationRow}>
+                    <View style={s.durationItem}>
+                      <TextInput
+                        style={s.settingsInput}
+                        value={editHours}
+                        onChangeText={setEditHours}
+                        keyboardType="number-pad"
+                        maxLength={2}
+                        placeholderTextColor="#64748B"
+                      />
+                      <Text style={s.durationLabel}>hours</Text>
+                    </View>
+                    <View style={s.durationItem}>
+                      <View style={s.minsBtnRow}>
+                        {[0, 15, 30, 45].map((m) => (
+                          <TouchableOpacity
+                            key={m}
+                            style={[s.minsBtn, editMins === m && s.minsBtnActive]}
+                            onPress={() => setEditMins(m)}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[s.minsBtnText, editMins === m && s.minsBtnTextActive]}>{m}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                      <Text style={s.durationLabel}>minutes</Text>
+                    </View>
+                  </View>
                 </View>
 
                 <View style={s.settingsField}>
@@ -251,7 +323,7 @@ export default function SetupScreen() {
                     {(() => {
                       const h = parseInt(editHours, 10) || 0;
                       const m = parseInt(editMinutes, 10) || 0;
-                      const total = h * 60;
+                      const total = h * 60 + editMins;
                       const rotations = m > 0 ? Math.floor(total / m) : 0;
                       return `${total} min total → ${rotations} rotation${rotations !== 1 ? "s" : ""} of ${m} min`;
                     })()}
@@ -417,6 +489,22 @@ const s = StyleSheet.create({
     borderColor: "#475569",
     textAlign: "center",
   },
+  durationRow: { flexDirection: "row", gap: 16, alignItems: "flex-start" },
+  durationItem: { flex: 1 },
+  durationLabel: { color: "#94A3B8", fontSize: 11, textAlign: "center", marginTop: 4 },
+  minsBtnRow: { flexDirection: "row", gap: 4 },
+  minsBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#0F172A",
+    borderWidth: 1,
+    borderColor: "#475569",
+    alignItems: "center",
+  },
+  minsBtnActive: { backgroundColor: "#F97316", borderColor: "#F97316" },
+  minsBtnText: { color: "#94A3B8", fontSize: 16, fontWeight: "bold" },
+  minsBtnTextActive: { color: "#FFF" },
   previewCard: {
     backgroundColor: "#0F172A",
     borderRadius: 10,

@@ -153,7 +153,12 @@
       "PowerShell(Test-Path *)",
       "PowerShell($jdkPath = \"C:\\\\Program Files\\\\Android\\\\jdk\\\\jdk-8.0.302.8-hotspot\\\\jdk8u302-b08\"; & \"$jdkPath\\\\bin\\\\java.exe\" -version)",
       "PowerShell(Get-ItemProperty *)",
-      "PowerShell($jdk17 = \"C:\\\\Users\\\\Apollo\\\\.gradle\\\\jdks\\\\eclipse_adoptium-17-amd64-windows.2\"; & \"$jdk17\\\\bin\\\\java.exe\" -version)"
+      "PowerShell($jdk17 = \"C:\\\\Users\\\\Apollo\\\\.gradle\\\\jdks\\\\eclipse_adoptium-17-amd64-windows.2\"; & \"$jdk17\\\\bin\\\\java.exe\" -version)",
+      "Bash(findstr /E \"android\")",
+      "PowerShell(npx expo prebuild --platform android --no-install 2>&1)",
+      "PowerShell(npx expo export --platform android --no-minify 2>&1 | Select-Object -Last 5)",
+      "PowerShell(npx expo export --platform android --no-minify 2>&1 | Select-Object -Last 3)",
+      "Bash(.\\\\gradlew.bat assembleRelease)"
     ]
   }
 }
