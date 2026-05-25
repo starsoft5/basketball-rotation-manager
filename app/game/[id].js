@@ -11,6 +11,7 @@ import {
   Modal,
   ScrollView,
   StyleSheet,
+  Vibration,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
@@ -64,10 +65,15 @@ export default function GameScreen() {
   const [showBreakModal, setShowBreakModal] = useState(false);
   const [breakModalPlayers, setBreakModalPlayers] = useState([]);
   const [breakModalRotation, setBreakModalRotation] = useState(0);
+  const [transitionCountdown, setTransitionCountdown] = useState(0);
+  const [transitionExpired, setTransitionExpired] = useState(false);
   const [showManage, setShowManage] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState("");
   const [linkMode, setLinkMode] = useState(false);
   const [selectedForLink, setSelectedForLink] = useState([]);
+  const [showPayment, setShowPayment] = useState(false);
+  const [paidPlayers, setPaidPlayers] = useState(new Set());
+  const [paymentAmount, setPaymentAmount] = useState(280);
 
   const timerRef = useRef(null);
   const flatListRef = useRef(null);
@@ -84,6 +90,8 @@ export default function GameScreen() {
   const breakStartRef = useRef(null);
   const endTimeAlertShownRef = useRef(false);
   const startTimerRef = useRef(null);
+  const transitionTimerRef = useRef(null);
+  const transitionSecondsRef = useRef(0);
 
   useEffect(() => { currentRotationRef.current = currentRotation; }, [currentRotation]);
   useEffect(() => { scheduleRef.current = schedule; }, [schedule]);
@@ -121,6 +129,7 @@ export default function GameScreen() {
       appStateListener.remove();
       if (timerRef.current) clearInterval(timerRef.current);
       if (breakTimerRef.current) clearInterval(breakTimerRef.current);
+      if (transitionTimerRef.current) clearInterval(transitionTimerRef.current);
     };
   }, []);
 
@@ -143,9 +152,13 @@ export default function GameScreen() {
       gameEndTimeRef.current = data.game.game_end_time;
     }
 
+    const transitionSecs = settings.transitionTotalSeconds || 0;
+    const transitionMins = transitionSecs / 60;
+    setPaymentAmount(settings.paymentPerPlayer || 280);
+    transitionSecondsRef.current = transitionSecs;
     let minsPerGame, duration;
     if (mode === "equal_time" && data.players.length > 0) {
-      const info = calcRotationsEqualTime(data.players.length, maxGameMinutes);
+      const info = calcRotationsEqualTime(data.players.length, maxGameMinutes, transitionMins);
       minsPerGame = info.minutesPerRotation;
       duration = Math.round(minsPerGame * 60);
     } else {
@@ -165,8 +178,8 @@ export default function GameScreen() {
       setGameStatus(data.game.status);
     } else {
       const newSchedule = mode === "equal_time"
-        ? generateScheduleEqualTime(data.players, maxGameMinutes)
-        : generateSchedule(data.players, maxGameMinutes, minsPerGame);
+        ? generateScheduleEqualTime(data.players, maxGameMinutes, transitionMins)
+        : generateSchedule(data.players, maxGameMinutes, minsPerGame, transitionMins);
       await saveSchedule(gameId, newSchedule);
       const fullData = await getFullGameData(gameId);
       setGameData(fullData);
@@ -241,6 +254,10 @@ export default function GameScreen() {
             },
           },
           {
+            text: "Payment",
+            onPress: () => setShowPayment(true),
+          },
+          {
             text: "Extend 15 min",
             onPress: async () => {
               const newEnd = Date.now() + 15 * 60 * 1000;
@@ -276,9 +293,30 @@ export default function GameScreen() {
       const nextPlayersList = sched[nextRotation - 1]?.players || [];
       setBreakModalPlayers(nextPlayersList);
       setBreakModalRotation(nextRotation);
+      const transSecs = transitionSecondsRef.current;
+      setTransitionExpired(false);
+      if (transSecs > 0) {
+        setTransitionCountdown(transSecs);
+        const transEndTime = Date.now() + transSecs * 1000;
+        if (transitionTimerRef.current) clearInterval(transitionTimerRef.current);
+        transitionTimerRef.current = setInterval(() => {
+          const left = Math.round((transEndTime - Date.now()) / 1000);
+          if (left <= 0) {
+            clearInterval(transitionTimerRef.current);
+            transitionTimerRef.current = null;
+            setTransitionCountdown(0);
+            setTransitionExpired(true);
+            Vibration.vibrate([0, 500, 200, 500]);
+          } else {
+            setTransitionCountdown(left);
+          }
+        }, 1000);
+      } else {
+        setTransitionCountdown(0);
+      }
       setShowBreakModal(true);
     }
-  }, [gameId]);
+  }, [gameId, endBreak]);
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -319,6 +357,10 @@ export default function GameScreen() {
                     { text: "Go Home", onPress: () => router.replace("/") },
                   ]);
                 },
+              },
+              {
+                text: "Payment",
+                onPress: () => setShowPayment(true),
               },
               {
                 text: "Extend 15 min",
@@ -554,11 +596,11 @@ export default function GameScreen() {
     if (mode === "equal_time" && activePlayers.length > 0) {
       const maxGameSeconds = settings.equalTimeTotalMinutes * 60;
       const oldDuration = rotationDurationRef.current;
-      const currentTotal = data.rotations.length;
 
-      const targetPlays = Math.max(Math.round(currentTotal * 10 / activePlayers.length), 1);
-      const newTotal = Math.max(Math.round(targetPlays * activePlayers.length / 10), rot);
-      const newDuration = Math.round(maxGameSeconds / newTotal);
+      const transMin = (settings.transitionTotalSeconds || 0) / 60;
+      const calc = calcRotationsEqualTime(activePlayers.length, settings.equalTimeTotalMinutes, transMin);
+      const newTotal = Math.max(calc.totalGames, rot);
+      const newDuration = Math.round(calc.minutesPerRotation * 60);
       const futureCount = newTotal - rot;
 
       for (const rotation of futureRotations) {
@@ -808,6 +850,15 @@ export default function GameScreen() {
               <Text style={s.btnText}>Back to Home</Text>
             </TouchableOpacity>
           )}
+          {gameStatus !== "ready" && (
+            <TouchableOpacity
+              style={[s.btn, { backgroundColor: "#1E293B", borderWidth: 1, borderColor: "#FB923C", marginLeft: 10 }]}
+              onPress={() => setShowPayment(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={[s.btnText, { color: "#FB923C" }]}>Payment</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {isOnBreak && (
@@ -1040,6 +1091,16 @@ export default function GameScreen() {
         <View style={s.etOverlay}>
           <View style={s.etContent}>
             <Text style={s.etTitle}>Rotation {breakModalRotation} — Next Players</Text>
+            {transitionCountdown > 0 && (
+              <Text style={{ color: "#FB923C", fontSize: 32, fontWeight: "bold", textAlign: "center", marginVertical: 8 }}>
+                {formatTime(transitionCountdown)}
+              </Text>
+            )}
+            {transitionExpired && (
+              <Text style={{ color: "#EF4444", fontSize: 16, fontWeight: "bold", textAlign: "center", marginVertical: 8 }}>
+                Transition time is up!
+              </Text>
+            )}
             <View style={s.breakPlayerList}>
               {breakModalPlayers.map((p, i) => (
                 <View key={p.id} style={s.breakPlayerRow}>
@@ -1059,13 +1120,92 @@ export default function GameScreen() {
                 marginTop: 20,
               }}
               onPress={() => {
+                if (transitionTimerRef.current) {
+                  clearInterval(transitionTimerRef.current);
+                  transitionTimerRef.current = null;
+                }
+                setTransitionCountdown(0);
+                setTransitionExpired(false);
                 setShowBreakModal(false);
                 endBreak();
               }}
               activeOpacity={0.8}
             >
               <Text style={{ color: "#FFF", textAlign: "center", fontWeight: "bold", fontSize: 16 }}>
-                End Break & Resume
+                {transitionCountdown > 0 ? "Start Now" : "End Break & Resume"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showPayment} animationType="fade" transparent>
+        <View style={s.etOverlay}>
+          <View style={s.etContent}>
+            <Text style={s.etTitle}>Payment</Text>
+            <ScrollView style={{ maxHeight: 400 }}>
+              {gameData?.players.map((p) => (
+                <TouchableOpacity
+                  key={p.id}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingVertical: 10,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#334155",
+                  }}
+                  onPress={() => {
+                    setPaidPlayers((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(p.id)) next.delete(p.id);
+                      else next.add(p.id);
+                      return next;
+                    });
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={{
+                    width: 24, height: 24, borderRadius: 6,
+                    borderWidth: 2, borderColor: paidPlayers.has(p.id) ? "#16A34A" : "#64748B",
+                    backgroundColor: paidPlayers.has(p.id) ? "#16A34A" : "transparent",
+                    alignItems: "center", justifyContent: "center", marginRight: 12,
+                  }}>
+                    {paidPlayers.has(p.id) && (
+                      <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "bold" }}>✓</Text>
+                    )}
+                  </View>
+                  <Text style={{ color: "#FFF", fontSize: 15, flex: 1 }}>{p.name}</Text>
+                  {p.jersey_number != null && (
+                    <Text style={{ color: "#94A3B8", fontSize: 13 }}>#{p.jersey_number}</Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <View style={{
+              marginTop: 16, paddingTop: 12,
+              borderTopWidth: 1, borderTopColor: "#334155",
+            }}>
+              <Text style={{ color: "#94A3B8", fontSize: 13 }}>
+                {paidPlayers.size} of {gameData?.players.length || 0} players paid
+              </Text>
+              <Text style={{ color: "#FB923C", fontSize: 22, fontWeight: "bold", marginTop: 4 }}>
+                Total: {paidPlayers.size * paymentAmount}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={{
+                backgroundColor: "#1E293B",
+                paddingVertical: 14,
+                borderRadius: 12,
+                marginTop: 16,
+                borderWidth: 1,
+                borderColor: "#334155",
+              }}
+              onPress={() => setShowPayment(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={{ color: "#FFF", textAlign: "center", fontWeight: "bold", fontSize: 16 }}>
+                Close
               </Text>
             </TouchableOpacity>
           </View>

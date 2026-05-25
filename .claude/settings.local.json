@@ -158,7 +158,11 @@
       "PowerShell(npx expo prebuild --platform android --no-install 2>&1)",
       "PowerShell(npx expo export --platform android --no-minify 2>&1 | Select-Object -Last 5)",
       "PowerShell(npx expo export --platform android --no-minify 2>&1 | Select-Object -Last 3)",
-      "Bash(.\\\\gradlew.bat assembleRelease)"
+      "Bash(.\\\\gradlew.bat assembleRelease)",
+      "Bash(dir .claude\\\\skills)",
+      "Bash(node *)",
+      "Bash(timeout 30)",
+      "Bash(powershell *)"
     ]
   }
 }

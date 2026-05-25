@@ -27,8 +27,11 @@ export default function SetupScreen() {
   const [editEqualTimeHours, setEditEqualTimeHours] = useState("2");
   const [editEqualTimeMins, setEditEqualTimeMins] = useState(0);
   const [editMinutes, setEditMinutes] = useState("10");
-  const [transitionMinutes, setTransitionMinutes] = useState(2);
-  const [editTransition, setEditTransition] = useState("2");
+  const [transitionTotalSeconds, setTransitionTotalSeconds] = useState(120);
+  const [editTransitionMins, setEditTransitionMins] = useState("2");
+  const [editTransitionSecs, setEditTransitionSecs] = useState("0");
+  const [paymentPerPlayer, setPaymentPerPlayer] = useState(280);
+  const [editPayment, setEditPayment] = useState("280");
 
   useEffect(() => {
     loadSettings();
@@ -39,14 +42,17 @@ export default function SetupScreen() {
     setGameTotalMinutes(settings.gameTotalMinutes);
     setEqualTimeTotalMinutes(settings.equalTimeTotalMinutes);
     setMinutesPerGame(settings.minutesPerGame);
-    setTransitionMinutes(settings.transitionMinutes);
+    setTransitionTotalSeconds(settings.transitionTotalSeconds);
     setDistributionMode(settings.distributionMode);
     setEditHours(String(Math.floor(settings.gameTotalMinutes / 60)));
     setEditMins(settings.gameTotalMinutes % 60);
     setEditEqualTimeHours(String(Math.floor(settings.equalTimeTotalMinutes / 60)));
     setEditEqualTimeMins(settings.equalTimeTotalMinutes % 60);
     setEditMinutes(String(settings.minutesPerGame));
-    setEditTransition(String(settings.transitionMinutes));
+    setEditTransitionMins(String(Math.floor(settings.transitionTotalSeconds / 60)));
+    setEditTransitionSecs(String(settings.transitionTotalSeconds % 60));
+    setPaymentPerPlayer(settings.paymentPerPlayer);
+    setEditPayment(String(settings.paymentPerPlayer));
   };
 
   const handleOpenSettings = () => {
@@ -55,7 +61,9 @@ export default function SetupScreen() {
     setEditEqualTimeHours(String(Math.floor(equalTimeTotalMinutes / 60)));
     setEditEqualTimeMins(equalTimeTotalMinutes % 60);
     setEditMinutes(String(minutesPerGame));
-    setEditTransition(String(transitionMinutes));
+    setEditTransitionMins(String(Math.floor(transitionTotalSeconds / 60)));
+    setEditTransitionSecs(String(transitionTotalSeconds % 60));
+    setEditPayment(String(paymentPerPlayer));
     setShowSettings(true);
   };
 
@@ -89,9 +97,16 @@ export default function SetupScreen() {
       Alert.alert("Invalid", "Minutes per game cannot exceed Flexible Rotations total time.");
       return;
     }
-    const t = parseInt(editTransition, 10);
-    if (isNaN(t) || t < 0 || t > 10) {
-      Alert.alert("Invalid", "Transition time must be between 0 and 10 minutes.");
+    const tMins = parseInt(editTransitionMins, 10) || 0;
+    const tSecs = parseInt(editTransitionSecs, 10) || 0;
+    const tTotal = tMins * 60 + tSecs;
+    if (tMins < 0 || tSecs < 0 || tSecs > 59 || tTotal > 600) {
+      Alert.alert("Invalid", "Transition time must be between 0:00 and 10:00.");
+      return;
+    }
+    const pay = parseInt(editPayment, 10);
+    if (isNaN(pay) || pay < 0) {
+      Alert.alert("Invalid", "Payment per player must be 0 or more.");
       return;
     }
     await saveSetting("game_total_minutes", gameTotal);
@@ -99,11 +114,14 @@ export default function SetupScreen() {
     await saveSetting("game_hours", Math.floor(gameTotal / 60));
     await saveSetting("equal_time_hours", Math.floor(eqTotal / 60));
     await saveSetting("minutes_per_game", m);
-    await saveSetting("transition_minutes", t);
+    await saveSetting("transition_total_seconds", tTotal);
+    await saveSetting("transition_minutes", Math.floor(tTotal / 60));
+    await saveSetting("payment_per_player", pay);
     setGameTotalMinutes(gameTotal);
     setEqualTimeTotalMinutes(eqTotal);
     setMinutesPerGame(m);
-    setTransitionMinutes(t);
+    setTransitionTotalSeconds(tTotal);
+    setPaymentPerPlayer(pay);
     setShowSettings(false);
     Alert.alert("Saved", "Game duration settings updated.");
   };
@@ -265,8 +283,8 @@ export default function SetupScreen() {
                     {(() => {
                       const eqH = parseInt(editEqualTimeHours, 10) || 0;
                       const total = eqH * 60 + editEqualTimeMins;
-                      const t = parseInt(editTransition, 10) || 0;
-                      const note = t > 0 ? ` (incl. transition time)` : "";
+                      const tTotalSecs = (parseInt(editTransitionMins, 10) || 0) * 60 + (parseInt(editTransitionSecs, 10) || 0);
+                      const note = tTotalSecs > 0 ? ` (incl. transition time)` : "";
                       return `${total} min total — equal time per player${note}`;
                     })()}
                   </Text>
@@ -331,6 +349,46 @@ export default function SetupScreen() {
                 </View>
               </>
             )}
+
+            <View style={s.settingsField}>
+              <Text style={s.settingsLabel}>Transition Time Between Rotations</Text>
+              <View style={s.durationRow}>
+                <View style={s.durationItem}>
+                  <TextInput
+                    style={s.settingsInput}
+                    value={editTransitionMins}
+                    onChangeText={setEditTransitionMins}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholderTextColor="#64748B"
+                  />
+                  <Text style={s.durationLabel}>min</Text>
+                </View>
+                <View style={s.durationItem}>
+                  <TextInput
+                    style={s.settingsInput}
+                    value={editTransitionSecs}
+                    onChangeText={setEditTransitionSecs}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    placeholderTextColor="#64748B"
+                  />
+                  <Text style={s.durationLabel}>sec</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={s.settingsField}>
+              <Text style={s.settingsLabel}>Payment Per Player</Text>
+              <TextInput
+                style={s.settingsInput}
+                value={editPayment}
+                onChangeText={setEditPayment}
+                keyboardType="number-pad"
+                maxLength={5}
+                placeholderTextColor="#64748B"
+              />
+            </View>
 
             <View style={s.modalBtnRow}>
               <TouchableOpacity

@@ -85,6 +85,8 @@ async function initializeDatabase(database) {
   await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('game_total_minutes', '120')");
   await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('equal_time_total_minutes', '120')");
   await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('transition_minutes', '2')");
+  await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('transition_total_seconds', '120')");
+  await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('payment_per_player', '280')");
 }
 
 export async function createGame(name, totalPlayers) {
@@ -285,7 +287,9 @@ export async function getSettings() {
     equalTimeTotalMinutes: parseInt(settings.equal_time_total_minutes || String(equalTimeHours * 60), 10),
     minutesPerGame: parseInt(settings.minutes_per_game || "10", 10),
     transitionMinutes: parseInt(settings.transition_minutes || "2", 10),
+    transitionTotalSeconds: parseInt(settings.transition_total_seconds || String(parseInt(settings.transition_minutes || "2", 10) * 60), 10),
     distributionMode: settings.distribution_mode || "unequal_games",
+    paymentPerPlayer: parseInt(settings.payment_per_player || "280", 10),
   };
 }
 

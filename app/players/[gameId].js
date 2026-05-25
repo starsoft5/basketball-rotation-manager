@@ -23,9 +23,10 @@ export default function PlayerEntryScreen() {
   const [playerName, setPlayerName] = useState("");
   const [players, setPlayers] = useState([]);
   const [scanning, setScanning] = useState(false);
-  const [gameHours, setGameHours] = useState(2);
-  const [equalTimeHours, setEqualTimeHours] = useState(2);
+  const [gameTotalMinutes, setGameTotalMinutes] = useState(120);
+  const [equalTimeTotalMinutes, setEqualTimeTotalMinutes] = useState(120);
   const [minutesPerGame, setMinutesPerGame] = useState(10);
+  const [transitionTotalSeconds, setTransitionTotalSeconds] = useState(120);
   const [distributionMode, setDistributionMode] = useState("unequal_games");
 
   useEffect(() => {
@@ -40,17 +41,19 @@ export default function PlayerEntryScreen() {
 
   const loadSettings = async () => {
     const settings = await getSettings();
-    setGameHours(settings.gameHours);
-    setEqualTimeHours(settings.equalTimeHours);
+    setGameTotalMinutes(settings.gameTotalMinutes);
+    setEqualTimeTotalMinutes(settings.equalTimeTotalMinutes);
     setMinutesPerGame(settings.minutesPerGame);
+    setTransitionTotalSeconds(settings.transitionTotalSeconds);
     setDistributionMode(settings.distributionMode);
   };
 
-  const activeHours = distributionMode === "equal_time" ? equalTimeHours : gameHours;
+  const activeTotalMinutes = distributionMode === "equal_time" ? equalTimeTotalMinutes : gameTotalMinutes;
+  const transitionMins = transitionTotalSeconds / 60;
   const stats = players.length >= 10
     ? distributionMode === "equal_time"
-      ? calcRotationsEqualTime(players.length, activeHours * 60)
-      : calcRotations(players.length, activeHours * 60, minutesPerGame)
+      ? calcRotationsEqualTime(players.length, activeTotalMinutes, transitionMins)
+      : calcRotations(players.length, activeTotalMinutes, minutesPerGame, transitionMins)
     : null;
 
   const handleAddPlayer = async () => {
@@ -203,11 +206,16 @@ export default function PlayerEntryScreen() {
           <View style={s.statsCard}>
             <Text style={s.statsText}>
               {distributionMode === "equal_time"
-                ? `${stats.totalGames} rotations (${stats.totalMinutes} min) — ${formatTime(Math.round(stats.minutesPerRotation * 60))} each, ${stats.playsPerPlayer} games/player`
-                : `${stats.totalGames} games (${stats.totalMinutes} min) — ${stats.isEven
+                ? `${stats.totalGames} rotations — ${formatTime(Math.round(stats.minutesPerRotation * 60))} each, ${stats.isEven ? `${stats.playsPerPlayer} games/player` : `${stats.minPlays}-${stats.maxPlays} games/player`}`
+                : `${stats.totalGames} games (${Math.round(stats.totalMinutes)} min) — ${stats.isEven
                     ? `${stats.minPlays} games each`
                     : `${stats.playersWithMin} get ${stats.minPlays}, ${stats.playersWithExtra} get ${stats.maxPlays}`}`}
             </Text>
+            {transitionTotalSeconds > 0 && (
+              <Text style={[s.statsText, { marginTop: 4, fontSize: 12, color: "#94A3B8" }]}>
+                {`${formatTime(transitionTotalSeconds)} transition between rotations — total: ${Math.round(stats.totalWithTransitions)} min`}
+              </Text>
+            )}
           </View>
         )}
 
