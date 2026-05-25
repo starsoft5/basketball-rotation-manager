@@ -32,6 +32,8 @@ export default function SetupScreen() {
   const [editTransitionSecs, setEditTransitionSecs] = useState("0");
   const [paymentPerPlayer, setPaymentPerPlayer] = useState(280);
   const [editPayment, setEditPayment] = useState("280");
+  const [minGamesPerPlayer, setMinGamesPerPlayer] = useState(0);
+  const [editMinGames, setEditMinGames] = useState("0");
 
   useEffect(() => {
     loadSettings();
@@ -53,6 +55,8 @@ export default function SetupScreen() {
     setEditTransitionSecs(String(settings.transitionTotalSeconds % 60));
     setPaymentPerPlayer(settings.paymentPerPlayer);
     setEditPayment(String(settings.paymentPerPlayer));
+    setMinGamesPerPlayer(settings.minGamesPerPlayer);
+    setEditMinGames(String(settings.minGamesPerPlayer));
   };
 
   const handleOpenSettings = () => {
@@ -64,6 +68,7 @@ export default function SetupScreen() {
     setEditTransitionMins(String(Math.floor(transitionTotalSeconds / 60)));
     setEditTransitionSecs(String(transitionTotalSeconds % 60));
     setEditPayment(String(paymentPerPlayer));
+    setEditMinGames(String(minGamesPerPlayer));
     setShowSettings(true);
   };
 
@@ -109,6 +114,11 @@ export default function SetupScreen() {
       Alert.alert("Invalid", "Payment per player must be 0 or more.");
       return;
     }
+    const minG = parseInt(editMinGames, 10) || 0;
+    if (minG < 0 || minG > 20) {
+      Alert.alert("Invalid", "Minimum games per player must be between 0 and 20.");
+      return;
+    }
     await saveSetting("game_total_minutes", gameTotal);
     await saveSetting("equal_time_total_minutes", eqTotal);
     await saveSetting("game_hours", Math.floor(gameTotal / 60));
@@ -117,11 +127,13 @@ export default function SetupScreen() {
     await saveSetting("transition_total_seconds", tTotal);
     await saveSetting("transition_minutes", Math.floor(tTotal / 60));
     await saveSetting("payment_per_player", pay);
+    await saveSetting("min_games_per_player", minG);
     setGameTotalMinutes(gameTotal);
     setEqualTimeTotalMinutes(eqTotal);
     setMinutesPerGame(m);
     setTransitionTotalSeconds(tTotal);
     setPaymentPerPlayer(pay);
+    setMinGamesPerPlayer(minG);
     setShowSettings(false);
     Alert.alert("Saved", "Game duration settings updated.");
   };
@@ -241,6 +253,7 @@ export default function SetupScreen() {
 
       <Modal visible={showSettings} animationType="fade" transparent>
         <View style={s.modalOverlay}>
+          <ScrollView style={s.modalScroll} contentContainerStyle={s.modalScrollContent} showsVerticalScrollIndicator={true}>
           <View style={s.modalContent}>
             <Text style={s.modalTitle}>Game Duration Settings</Text>
 
@@ -378,6 +391,24 @@ export default function SetupScreen() {
               </View>
             </View>
 
+            {distributionMode === "unequal_games" && (
+              <View style={s.settingsField}>
+                <Text style={s.settingsLabel}>Minimum Games Per Player</Text>
+                <TextInput
+                  style={s.settingsInput}
+                  value={editMinGames}
+                  onChangeText={setEditMinGames}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="0 = no minimum"
+                  placeholderTextColor="#64748B"
+                />
+                <Text style={s.settingsHint}>
+                  Auto-adjusts rotation time if needed to guarantee minimum games. Set to 0 to disable.
+                </Text>
+              </View>
+            )}
+
             <View style={s.settingsField}>
               <Text style={s.settingsLabel}>Payment Per Player</Text>
               <TextInput
@@ -407,6 +438,7 @@ export default function SetupScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          </ScrollView>
         </View>
       </Modal>
     </KeyboardAvoidingView>
@@ -518,6 +550,14 @@ const s = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 24,
   },
+  modalScroll: {
+    flex: 1,
+    width: "100%",
+  },
+  modalScrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
   modalContent: {
     backgroundColor: "#1E293B",
     borderRadius: 16,
@@ -563,6 +603,7 @@ const s = StyleSheet.create({
   minsBtnActive: { backgroundColor: "#F97316", borderColor: "#F97316" },
   minsBtnText: { color: "#94A3B8", fontSize: 16, fontWeight: "bold" },
   minsBtnTextActive: { color: "#FFF" },
+  settingsHint: { color: "#94A3B8", fontSize: 11, marginTop: 4, textAlign: "center" },
   previewCard: {
     backgroundColor: "#0F172A",
     borderRadius: 10,

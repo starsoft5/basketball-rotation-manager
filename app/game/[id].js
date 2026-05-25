@@ -12,8 +12,11 @@ import {
   ScrollView,
   StyleSheet,
   Vibration,
+  Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { useKeepAwake } from "expo-keep-awake";
+import * as Notifications from "expo-notifications";
 import {
   getFullGameData,
   updateGameStatus,
@@ -37,6 +40,47 @@ import {
 } from "../../db/database";
 import { generateSchedule, generateScheduleEqualTime, calcRotations, calcRotationsEqualTime, formatTime } from "../../utils/scheduler";
 import RotationCard from "../../components/RotationCard";
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
+async function setupNotificationChannel() {
+  if (Platform.OS === "android") {
+    await Notifications.setNotificationChannelAsync("rotation-timer", {
+      name: "Rotation Timer",
+      importance: Notifications.AndroidImportance.MAX,
+      sound: "default",
+      vibrationPattern: [0, 500, 200, 500],
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      bypassDnd: true,
+    });
+  }
+}
+
+async function scheduleRotationNotification(seconds, rotationNum, totalRotations) {
+  await Notifications.cancelAllScheduledNotificationsAsync();
+  if (seconds <= 0) return;
+  await setupNotificationChannel();
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: "Rotation Time!",
+      body: `Rotation ${rotationNum} of ${totalRotations} is done. Time to sub!`,
+      sound: "default",
+      priority: Notifications.AndroidNotificationPriority.MAX,
+      ...(Platform.OS === "android" && { channelId: "rotation-timer" }),
+    },
+    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, repeats: false },
+  });
+}
+
+async function cancelRotationNotification() {
+  await Notifications.cancelAllScheduledNotificationsAsync();
+}
 
 export default function GameScreen() {
   const router = useRouter();
@@ -75,6 +119,8 @@ export default function GameScreen() {
   const [paidPlayers, setPaidPlayers] = useState(new Set());
   const [paymentAmount, setPaymentAmount] = useState(280);
 
+  useKeepAwake();
+
   const timerRef = useRef(null);
   const flatListRef = useRef(null);
   const currentRotationRef = useRef(0);
@@ -103,6 +149,7 @@ export default function GameScreen() {
   useEffect(() => { breakTimeRef.current = breakTime; }, [breakTime]);
 
   useEffect(() => {
+    Notifications.requestPermissionsAsync();
     loadGame();
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
       handleExit();
@@ -118,15 +165,21 @@ export default function GameScreen() {
           timerEndTimeRef.current = null;
           setTimeRemaining(0);
           setIsRunning(false);
+          cancelRotationNotification();
           handleRotationEnd();
         } else {
           setTimeRemaining(remaining);
         }
       }
     });
+    const notifReceivedListener = Notifications.addNotificationReceivedListener(() => {
+      Vibration.vibrate([0, 500, 200, 500, 200, 500]);
+    });
     return () => {
       backHandler.remove();
       appStateListener.remove();
+      notifReceivedListener.remove();
+      cancelRotationNotification();
       if (timerRef.current) clearInterval(timerRef.current);
       if (breakTimerRef.current) clearInterval(breakTimerRef.current);
       if (transitionTimerRef.current) clearInterval(transitionTimerRef.current);
@@ -154,6 +207,7 @@ export default function GameScreen() {
 
     const transitionSecs = settings.transitionTotalSeconds || 0;
     const transitionMins = transitionSecs / 60;
+    const minGames = settings.minGamesPerPlayer || 0;
     setPaymentAmount(settings.paymentPerPlayer || 280);
     transitionSecondsRef.current = transitionSecs;
     let minsPerGame, duration;
@@ -162,7 +216,8 @@ export default function GameScreen() {
       minsPerGame = info.minutesPerRotation;
       duration = Math.round(minsPerGame * 60);
     } else {
-      minsPerGame = settings.minutesPerGame;
+      const info = calcRotations(data.players.length, maxGameMinutes, settings.minutesPerGame, transitionMins, minGames);
+      minsPerGame = info.minutesPerRotation;
       duration = minsPerGame * 60;
     }
 
@@ -179,7 +234,7 @@ export default function GameScreen() {
     } else {
       const newSchedule = mode === "equal_time"
         ? generateScheduleEqualTime(data.players, maxGameMinutes, transitionMins)
-        : generateSchedule(data.players, maxGameMinutes, minsPerGame, transitionMins);
+        : generateSchedule(data.players, maxGameMinutes, minsPerGame, transitionMins, minGames);
       await saveSchedule(gameId, newSchedule);
       const fullData = await getFullGameData(gameId);
       setGameData(fullData);
@@ -211,6 +266,7 @@ export default function GameScreen() {
     if (rot >= sched.length) {
       setGameStatus("completed");
       await updateGameStatus(gameId, "completed");
+      cancelRotationNotification();
       Alert.alert("Game Over!", `All ${sched.length} rotations have been completed.`, [
         { text: "View Summary", onPress: () => {} },
         { text: "Go Home", onPress: () => router.replace("/") },
@@ -322,6 +378,8 @@ export default function GameScreen() {
     if (timerRef.current) clearInterval(timerRef.current);
     setTimeRemaining((current) => {
       timerEndTimeRef.current = Date.now() + current * 1000;
+      const secs = Math.max(Math.round(current), 1);
+      scheduleRotationNotification(secs, currentRotationRef.current, scheduleRef.current.length);
       return current;
     });
     timerRef.current = setInterval(() => {
@@ -340,6 +398,7 @@ export default function GameScreen() {
           clearInterval(timerRef.current);
           timerRef.current = null;
           setIsRunning(false);
+          cancelRotationNotification();
           const rot = currentRotationRef.current;
           const sched = scheduleRef.current;
           const left = sched.length - rot;
@@ -393,6 +452,7 @@ export default function GameScreen() {
         timerEndTimeRef.current = null;
         setTimeRemaining(0);
         setIsRunning(false);
+        cancelRotationNotification();
         handleRotationEnd();
       } else {
         setTimeRemaining(remaining);
@@ -410,6 +470,7 @@ export default function GameScreen() {
     }
     timerEndTimeRef.current = null;
     setIsRunning(false);
+    cancelRotationNotification();
   }, []);
 
   const startBreak = useCallback(() => {

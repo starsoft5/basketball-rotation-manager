@@ -162,7 +162,25 @@
       "Bash(dir .claude\\\\skills)",
       "Bash(node *)",
       "Bash(timeout 30)",
-      "Bash(powershell *)"
+      "Bash(powershell *)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = '0'; npx expo prebuild --platform android --clean 2>&1)",
+      "PowerShell(& \"$env:ANDROID_HOME\\\\cmdline-tools\\\\latest\\\\bin\\\\sdkmanager.bat\" --list 2>&1 | Select-String \"cmake\")",
+      "PowerShell(& \"$env:ANDROID_HOME\\\\cmdline-tools\\\\latest\\\\bin\\\\sdkmanager.bat\" --list 2>&1 | Select-String \"cmake\" | Select-Object -First 10)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = '0'; & \"$env:ANDROID_HOME\\\\cmdline-tools\\\\latest\\\\bin\\\\sdkmanager.bat\" --list 2>&1 | Select-String \"cmake\" -AllMatches)",
+      "PowerShell(cmake *)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = '0'; npx expo export --platform android 2>&1 | Select-Object -Last 15)",
+      "PowerShell(Set-Location \"C:\\\\claudeapps\\\\basketball-rotation\"; $env:NODE_TLS_REJECT_UNAUTHORIZED = '0'; npx expo export --platform android 2>&1 | Select-Object -Last 15)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = '0'; npx eas-cli build --platform android --profile preview --non-interactive 2>&1)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = '0'; npx eas-cli build --platform android --profile preview --local --non-interactive 2>&1)",
+      "PowerShell($apk = \"C:\\\\claudeapps\\\\basketball-rotation\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\"; Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = [System.IO.Compression.ZipFile]::OpenRead\\($apk\\); $zip.Entries | Where-Object { $_.FullName -match \"bundle|assets\" -and $_.FullName -notmatch \"\\\\.png|\\\\.jpg|\\\\.webp|\\\\.gif|\\\\.ttf|\\\\.otf\" } | Select-Object FullName, Length | Format-Table -AutoSize; $zip.Dispose\\(\\))",
+      "PowerShell(Set-Location C:\\\\claudeapps\\\\basketball-rotation; $env:CI = '1'; npx expo prebuild --platform android --clean 2>&1)",
+      "PowerShell(adb kill-server *)",
+      "PowerShell(adb install *)",
+      "PowerShell(adb logcat *)",
+      "PowerShell(npm show *)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = '0'; Set-Location C:\\\\claudeapps\\\\basketball-rotation; npx expo install --check 2>&1)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = '0'; Set-Location C:\\\\claudeapps\\\\basketball-rotation; npx expo install --fix 2>&1)",
+      "PowerShell(Set-Location C:\\\\claudeapps\\\\basketball-rotation; $env:CI = '1'; npx expo prebuild --platform android 2>&1)"
     ]
   }
 }

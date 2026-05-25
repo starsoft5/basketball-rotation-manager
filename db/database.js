@@ -290,6 +290,7 @@ export async function getSettings() {
     transitionTotalSeconds: parseInt(settings.transition_total_seconds || String(parseInt(settings.transition_minutes || "2", 10) * 60), 10),
     distributionMode: settings.distribution_mode || "unequal_games",
     paymentPerPlayer: parseInt(settings.payment_per_player || "280", 10),
+    minGamesPerPlayer: parseInt(settings.min_games_per_player || "0", 10),
   };
 }
 

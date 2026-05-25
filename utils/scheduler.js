@@ -5,26 +5,40 @@ function gcd(a, b) {
   return a;
 }
 
-export function calcRotations(playerCount, maxGameMinutes = 120, minutesPerGame = 10, transitionMinutes = 0) {
-  const totalGames = transitionMinutes > 0
+export function calcRotations(playerCount, maxGameMinutes = 120, minutesPerGame = 10, transitionMinutes = 0, minGamesPerPlayer = 0) {
+  let totalGames = transitionMinutes > 0
     ? Math.floor((maxGameMinutes + transitionMinutes) / (minutesPerGame + transitionMinutes))
     : Math.floor(maxGameMinutes / minutesPerGame);
+  let adjustedMinutesPerGame = minutesPerGame;
+
+  if (minGamesPerPlayer > 0 && playerCount > 0) {
+    const requiredSlots = playerCount * minGamesPerPlayer;
+    const requiredGames = Math.ceil(requiredSlots / PLAYERS_PER_GAME);
+    if (requiredGames > totalGames) {
+      totalGames = requiredGames;
+      const availablePlayTime = maxGameMinutes - Math.max(totalGames - 1, 0) * transitionMinutes;
+      adjustedMinutesPerGame = Math.max(Math.floor(availablePlayTime / totalGames), 1);
+    }
+  }
+
   const totalSlots = totalGames * PLAYERS_PER_GAME;
   const minPlays = Math.floor(totalSlots / playerCount);
   const maxPlays = Math.ceil(totalSlots / playerCount);
   const extraSlots = totalSlots - playerCount * minPlays;
-  const playingMinutes = totalGames * minutesPerGame;
+  const playingMinutes = totalGames * adjustedMinutesPerGame;
   return {
     totalGames,
     totalMinutes: playingMinutes,
     totalWithTransitions: playingMinutes + Math.max(totalGames - 1, 0) * transitionMinutes,
-    minutesPerRotation: minutesPerGame,
+    minutesPerRotation: adjustedMinutesPerGame,
     transitionMinutes,
     minPlays,
     maxPlays,
     playersWithExtra: extraSlots,
     playersWithMin: playerCount - extraSlots,
     isEven: extraSlots === 0,
+    adjusted: adjustedMinutesPerGame !== minutesPerGame,
+    originalMinutesPerGame: minutesPerGame,
   };
 }
 
@@ -97,8 +111,8 @@ export function calcRotationsEqualTime(playerCount, maxGameMinutes = 120, transi
   };
 }
 
-export function generateSchedule(players, maxGameMinutes = 120, minutesPerGame = 10, transitionMinutes = 0) {
-  const { totalGames, minPlays } = calcRotations(players.length, maxGameMinutes, minutesPerGame, transitionMinutes);
+export function generateSchedule(players, maxGameMinutes = 120, minutesPerGame = 10, transitionMinutes = 0, minGamesPerPlayer = 0) {
+  const { totalGames, minPlays } = calcRotations(players.length, maxGameMinutes, minutesPerGame, transitionMinutes, minGamesPerPlayer);
   const rotations = [];
   const playCounts = new Map();
   players.forEach((p) => playCounts.set(p.id, 0));

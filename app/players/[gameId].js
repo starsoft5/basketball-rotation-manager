@@ -28,6 +28,7 @@ export default function PlayerEntryScreen() {
   const [minutesPerGame, setMinutesPerGame] = useState(10);
   const [transitionTotalSeconds, setTransitionTotalSeconds] = useState(120);
   const [distributionMode, setDistributionMode] = useState("unequal_games");
+  const [minGamesPerPlayer, setMinGamesPerPlayer] = useState(0);
 
   useEffect(() => {
     loadPlayers();
@@ -46,6 +47,7 @@ export default function PlayerEntryScreen() {
     setMinutesPerGame(settings.minutesPerGame);
     setTransitionTotalSeconds(settings.transitionTotalSeconds);
     setDistributionMode(settings.distributionMode);
+    setMinGamesPerPlayer(settings.minGamesPerPlayer || 0);
   };
 
   const activeTotalMinutes = distributionMode === "equal_time" ? equalTimeTotalMinutes : gameTotalMinutes;
@@ -53,7 +55,7 @@ export default function PlayerEntryScreen() {
   const stats = players.length >= 10
     ? distributionMode === "equal_time"
       ? calcRotationsEqualTime(players.length, activeTotalMinutes, transitionMins)
-      : calcRotations(players.length, activeTotalMinutes, minutesPerGame, transitionMins)
+      : calcRotations(players.length, activeTotalMinutes, minutesPerGame, transitionMins, minGamesPerPlayer)
     : null;
 
   const handleAddPlayer = async () => {
@@ -214,6 +216,11 @@ export default function PlayerEntryScreen() {
             {transitionTotalSeconds > 0 && (
               <Text style={[s.statsText, { marginTop: 4, fontSize: 12, color: "#94A3B8" }]}>
                 {`${formatTime(transitionTotalSeconds)} transition between rotations — total: ${Math.round(stats.totalWithTransitions)} min`}
+              </Text>
+            )}
+            {stats.adjusted && (
+              <Text style={[s.statsText, { marginTop: 4, fontSize: 12, color: "#FB923C" }]}>
+                {`Rotation adjusted from ${stats.originalMinutesPerGame} to ${stats.minutesPerRotation} min to guarantee ${minGamesPerPlayer}+ games`}
               </Text>
             )}
           </View>
