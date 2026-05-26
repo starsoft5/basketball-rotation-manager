@@ -118,6 +118,7 @@ export default function GameScreen() {
   const [showPayment, setShowPayment] = useState(false);
   const [paidPlayers, setPaidPlayers] = useState(new Set());
   const [paymentAmount, setPaymentAmount] = useState(280);
+  const [distributionMode, setDistributionMode] = useState("unequal_games");
 
   useKeepAwake();
 
@@ -189,6 +190,7 @@ export default function GameScreen() {
   const loadGame = async () => {
     const settings = await getSettings();
     const mode = settings.distributionMode;
+    setDistributionMode(mode);
     const maxGameMinutes = mode === "equal_time" ? settings.equalTimeTotalMinutes : settings.gameTotalMinutes;
 
     const data = await getFullGameData(gameId);
@@ -809,9 +811,13 @@ export default function GameScreen() {
 
   const elapsed = (currentRotation - 1) * rotationDuration + (rotationDuration - timeRemaining);
   const totalGameTime = formatTime(Math.max(elapsed, 0));
-  const endTimeDisplay = gameEndTime > 0
-    ? new Date(gameEndTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
-    : "--:--";
+  const endTimeDisplay = (() => {
+    if (gameEndTime > 0) {
+      return new Date(gameEndTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+    const totalMs = schedule.length * rotationDuration * 1000;
+    return new Date(Date.now() + totalMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  })();
   const progress =
     gameStatus === "in_progress"
       ? ((currentRotation - 1) / schedule.length) * 100 +
@@ -863,24 +869,22 @@ export default function GameScreen() {
               {gameStatus === "completed" ? schedule.length : Math.max(currentRotation - 1, 0)}/{schedule.length}
             </Text>
           </View>
-          {gameEndTime > 0 && (
-            <TouchableOpacity
-              style={s.stat}
-              onPress={gameStatus === "in_progress" ? openEndTimePicker : undefined}
-              activeOpacity={gameStatus === "in_progress" ? 0.6 : 1}
-            >
-              <Text style={s.statLabel}>Ends At</Text>
-              <Text style={[
-                s.statValue,
-                gameStatus === "in_progress" && { color: "#FB923C" },
-                endTimeWarning && { color: "#EF4444" },
-                endTimeReached && { color: "#DC2626" },
-              ]}>
-                {endTimeDisplay}
-              </Text>
-              {gameStatus === "in_progress" && !endTimeReached && <Text style={s.editHint}>tap to edit</Text>}
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity
+            style={s.stat}
+            onPress={gameStatus === "in_progress" ? openEndTimePicker : undefined}
+            activeOpacity={gameStatus === "in_progress" ? 0.6 : 1}
+          >
+            <Text style={s.statLabel}>Ends At</Text>
+            <Text style={[
+              s.statValue,
+              gameStatus === "in_progress" && { color: "#FB923C" },
+              endTimeWarning && { color: "#EF4444" },
+              endTimeReached && { color: "#DC2626" },
+            ]}>
+              {endTimeDisplay}
+            </Text>
+            {gameStatus === "in_progress" && !endTimeReached && <Text style={s.editHint}>tap to edit</Text>}
+          </TouchableOpacity>
         </View>
 
         <View style={s.btnRow}>

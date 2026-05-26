@@ -207,11 +207,7 @@ export default function PlayerEntryScreen() {
         {stats && (
           <View style={s.statsCard}>
             <Text style={s.statsText}>
-              {distributionMode === "equal_time"
-                ? `${stats.totalGames} rotations — ${formatTime(Math.round(stats.minutesPerRotation * 60))} each, ${stats.isEven ? `${stats.playsPerPlayer} games/player` : `${stats.minPlays}-${stats.maxPlays} games/player`}`
-                : `${stats.totalGames} games (${Math.round(stats.totalMinutes)} min) — ${stats.isEven
-                    ? `${stats.minPlays} games each`
-                    : `${stats.playersWithMin} get ${stats.minPlays}, ${stats.playersWithExtra} get ${stats.maxPlays}`}`}
+              {`${stats.totalGames} rotations — ${formatTime(Math.round(stats.minutesPerRotation * 60))} each`}
             </Text>
             {transitionTotalSeconds > 0 && (
               <Text style={[s.statsText, { marginTop: 4, fontSize: 12, color: "#94A3B8" }]}>
@@ -223,6 +219,15 @@ export default function PlayerEntryScreen() {
                 {`Rotation adjusted from ${stats.originalMinutesPerGame} to ${stats.minutesPerRotation} min to guarantee ${minGamesPerPlayer}+ games`}
               </Text>
             )}
+            <Text style={[s.statsText, { marginTop: 4, fontSize: 13, color: "#34D399" }]}>
+              {(() => {
+                const minMin = Math.round(stats.minPlays * stats.minutesPerRotation);
+                if (stats.isEven) return `${stats.minPlays} games × ${formatTime(Math.round(stats.minutesPerRotation * 60))} = ${minMin} min per player`;
+                const maxMin = Math.round(stats.maxPlays * stats.minutesPerRotation);
+                const extraSlots = stats.totalGames * 10 - players.length * stats.minPlays;
+                return `${players.length - extraSlots} get ${stats.minPlays} games (${minMin} min), ${extraSlots} get ${stats.maxPlays} games (${maxMin} min)`;
+              })()}
+            </Text>
           </View>
         )}
 
@@ -350,6 +355,8 @@ const s = StyleSheet.create({
   addActive: { backgroundColor: "#F97316" },
   addDisabled: { backgroundColor: "#475569" },
   addBtnText: { color: "#FFF", fontWeight: "bold", fontSize: 15 },
+  modeBadge: { backgroundColor: "#1E3A5F", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, marginLeft: 8 },
+  modeBadgeText: { color: "#60A5FA", fontSize: 11, fontWeight: "bold" },
   list: { flex: 1 },
   playerRow: {
     flexDirection: "row",

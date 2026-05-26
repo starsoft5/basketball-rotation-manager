@@ -1,4 +1,6 @@
 const PLAYERS_PER_GAME = 10;
+const MIN_GAMES_PER_PLAYER = 4;
+const MIN_MINUTES_PER_ROTATION = 10;
 
 function gcd(a, b) {
   while (b) { [a, b] = [b, a % b]; }
@@ -6,20 +8,24 @@ function gcd(a, b) {
 }
 
 export function calcRotations(playerCount, maxGameMinutes = 120, minutesPerGame = 10, transitionMinutes = 0, minGamesPerPlayer = 0) {
-  let totalGames = transitionMinutes > 0
-    ? Math.floor((maxGameMinutes + transitionMinutes) / (minutesPerGame + transitionMinutes))
-    : Math.floor(maxGameMinutes / minutesPerGame);
+  const effectiveMin = Math.max(minGamesPerPlayer, MIN_GAMES_PER_PLAYER);
+  const minGames = playerCount > 0 ? Math.ceil(playerCount * effectiveMin / PLAYERS_PER_GAME) : 1;
+
+  let totalGames = minGames;
   let adjustedMinutesPerGame = minutesPerGame;
 
-  if (minGamesPerPlayer > 0 && playerCount > 0) {
-    const requiredSlots = playerCount * minGamesPerPlayer;
-    const requiredGames = Math.ceil(requiredSlots / PLAYERS_PER_GAME);
-    if (requiredGames > totalGames) {
-      totalGames = requiredGames;
-      const availablePlayTime = maxGameMinutes - Math.max(totalGames - 1, 0) * transitionMinutes;
-      adjustedMinutesPerGame = Math.max(Math.floor(availablePlayTime / totalGames), 1);
-    }
+  const availablePlay = (g) => maxGameMinutes - Math.max(g - 1, 0) * transitionMinutes;
+
+  const bestFromPlay = Math.floor(availablePlay(1) / minutesPerGame);
+  if (bestFromPlay > totalGames) totalGames = bestFromPlay;
+
+  while (totalGames > minGames && availablePlay(totalGames) / totalGames < MIN_MINUTES_PER_ROTATION) {
+    totalGames--;
   }
+
+  totalGames = Math.max(totalGames, minGames);
+  const playTime = availablePlay(totalGames);
+  adjustedMinutesPerGame = Math.max(Math.floor(playTime / totalGames), 1);
 
   const totalSlots = totalGames * PLAYERS_PER_GAME;
   const minPlays = Math.floor(totalSlots / playerCount);
@@ -44,13 +50,16 @@ export function calcRotations(playerCount, maxGameMinutes = 120, minutesPerGame 
 
 export function calcRotationsEqualTime(playerCount, maxGameMinutes = 120, transitionMinutes = 0) {
   const step = playerCount / gcd(playerCount, PLAYERS_PER_GAME);
+  const minRotations = Math.ceil(MIN_GAMES_PER_PLAYER * playerCount / PLAYERS_PER_GAME);
 
-  const effectiveDuration = (r) => (maxGameMinutes - (r - 1) * transitionMinutes) / r;
+  const availablePlay = (r) => maxGameMinutes - Math.max(r - 1, 0) * transitionMinutes;
+  const effectiveDuration = (r) => availablePlay(r) / r;
 
-  let perfectBest = step;
-  for (let r = step; r <= maxGameMinutes * 4; r += step) {
+  const startStep = Math.ceil(minRotations / step) * step;
+  let perfectBest = startStep;
+  for (let r = startStep; r <= maxGameMinutes * 4; r += step) {
     const duration = effectiveDuration(r);
-    if (duration < 3) break;
+    if (duration < MIN_MINUTES_PER_ROTATION) break;
     if (duration <= 15) {
       perfectBest = r;
       break;
@@ -60,13 +69,13 @@ export function calcRotationsEqualTime(playerCount, maxGameMinutes = 120, transi
 
   const perfectDur = effectiveDuration(perfectBest);
 
-  if (perfectDur >= 8) {
+  if (perfectDur >= MIN_MINUTES_PER_ROTATION) {
     const playsPerPlayer = (perfectBest * PLAYERS_PER_GAME) / playerCount;
     const playingMinutes = perfectBest * perfectDur;
     return {
       totalGames: perfectBest,
       totalMinutes: Math.round(playingMinutes * 100) / 100,
-      totalWithTransitions: Math.round((playingMinutes + Math.max(perfectBest - 1, 0) * transitionMinutes) * 100) / 100,
+      totalWithTransitions: Math.round(maxGameMinutes * 100) / 100,
       minutesPerRotation: Math.round(perfectDur * 100) / 100,
       transitionMinutes,
       playsPerPlayer,
@@ -78,11 +87,11 @@ export function calcRotationsEqualTime(playerCount, maxGameMinutes = 120, transi
 
   let bestR = null;
   let bestDiff = Infinity;
-  const lo = Math.max(2, Math.ceil(maxGameMinutes / 15));
-  const hi = Math.floor(maxGameMinutes / 8);
+  const lo = Math.max(minRotations, Math.ceil(maxGameMinutes / 15));
+  const hi = Math.floor(maxGameMinutes / MIN_MINUTES_PER_ROTATION);
   for (let r = lo; r <= hi; r++) {
     const dur = effectiveDuration(r);
-    if (dur < 3) continue;
+    if (dur < MIN_MINUTES_PER_ROTATION) continue;
     const diff = Math.abs(dur - 10);
     if (diff < bestDiff) {
       bestDiff = diff;
@@ -236,6 +245,25 @@ export function generateScheduleEqualTime(players, maxGameMinutes = 120, transit
         unit.forEach((p) => playCounts.set(p.id, playCounts.get(p.id) + 1));
       }
       if (rotation.players.length >= PLAYERS_PER_GAME) break;
+    }
+  }
+
+  for (const player of players) {
+    while (playCounts.get(player.id) < playsPerPlayer) {
+      let didSwap = false;
+      for (const rotation of rotations) {
+        if (playCounts.get(player.id) >= playsPerPlayer) break;
+        if (rotation.players.some((p) => p.id === player.id)) continue;
+        const victim = rotation.players
+          .filter((p) => playCounts.get(p.id) > playsPerPlayer)
+          .sort((a, b) => playCounts.get(b.id) - playCounts.get(a.id))[0];
+        if (!victim) continue;
+        rotation.players = rotation.players.map((p) => p.id === victim.id ? player : p);
+        playCounts.set(victim.id, playCounts.get(victim.id) - 1);
+        playCounts.set(player.id, playCounts.get(player.id) + 1);
+        didSwap = true;
+      }
+      if (!didSwap) break;
     }
   }
 
