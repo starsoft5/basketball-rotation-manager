@@ -957,7 +957,7 @@ export default function GameScreen() {
           onPress={() => setShowManage(true)}
           activeOpacity={0.8}
         >
-          <Text style={s.manageBtnText}>Manage Players</Text>
+          <Text style={s.manageBtnText}>Manage Players ({gameData?.players?.length || 0})</Text>
         </TouchableOpacity>
       )}
 
@@ -965,7 +965,7 @@ export default function GameScreen() {
         <View style={s.modalOverlay}>
           <View style={s.modalContent}>
             <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>Manage Players</Text>
+              <Text style={s.modalTitle}>Manage Players ({gameData?.players?.length || 0})</Text>
               <TouchableOpacity onPress={() => { setShowManage(false); setLinkMode(false); setSelectedForLink([]); }}>
                 <Text style={s.modalClose}>Close</Text>
               </TouchableOpacity>
