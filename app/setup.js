@@ -156,7 +156,10 @@ export default function SetupScreen() {
   const activeTotalMinutes = distributionMode === "equal_time" ? equalTimeTotalMinutes : gameTotalMinutes;
   const activeHours = Math.floor(activeTotalMinutes / 60);
   const activeRemainingMins = activeTotalMinutes % 60;
-  const totalRotations = Math.floor(activeTotalMinutes / minutesPerGame);
+  const transitionMins = transitionTotalSeconds / 60;
+  const totalRotations = transitionMins > 0
+    ? Math.floor((activeTotalMinutes + transitionMins) / (minutesPerGame + transitionMins))
+    : Math.floor(activeTotalMinutes / minutesPerGame);
 
   return (
     <KeyboardAvoidingView
@@ -202,6 +205,7 @@ export default function SetupScreen() {
             {distributionMode === "unequal_games"
               ? `• ${minutesPerGame} min per rotation — ${totalRotations} rotation${totalRotations !== 1 ? "s" : ""} total`
               : "• Rotation duration auto-calculated per player count"}{"\n"}
+            {"• "}Transition time: {transitionTotalSeconds === 0 ? "None" : `${Math.floor(transitionTotalSeconds / 60)}m${transitionTotalSeconds % 60 > 0 ? ` ${transitionTotalSeconds % 60}s` : ""}`}{"\n"}
             {"• 10 players per game (5v5)"}{"\n"}
             {"• Fair rotation for all players"}
           </Text>
@@ -286,7 +290,10 @@ export default function SetupScreen() {
                       const h = parseFloat(editHours) || 0;
                       const m = parseInt(editMinutes, 10) || 0;
                       const total = Math.round(h * 60);
-                      const rotations = m > 0 ? Math.floor(total / m) : 0;
+                      const tMins = ((parseInt(editTransitionMins, 10) || 0) * 60 + (parseInt(editTransitionSecs, 10) || 0)) / 60;
+                      const rotations = m > 0
+                        ? (tMins > 0 ? Math.floor((total + tMins) / (m + tMins)) : Math.floor(total / m))
+                        : 0;
                       return `${total} min total → ${rotations} rotation${rotations !== 1 ? "s" : ""} of ${m} min`;
                     })()}
                   </Text>

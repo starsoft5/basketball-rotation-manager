@@ -19,7 +19,7 @@ export function calcRotations(playerCount, maxGameMinutes = 120, minutesPerGame 
   const bestFromPlay = Math.floor(availablePlay(1) / minutesPerGame);
   if (bestFromPlay > totalGames) totalGames = bestFromPlay;
 
-  while (totalGames > minGames && availablePlay(totalGames) / totalGames < MIN_MINUTES_PER_ROTATION) {
+  while (totalGames > minGames && availablePlay(totalGames) / totalGames < minutesPerGame) {
     totalGames--;
   }
 

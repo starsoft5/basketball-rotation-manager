@@ -40,6 +40,7 @@ import {
 } from "../../db/database";
 import { generateSchedule, generateScheduleEqualTime, calcRotations, calcRotationsEqualTime, formatTime } from "../../utils/scheduler";
 import RotationCard from "../../components/RotationCard";
+import { scheduleAlarm, cancelAlarm, bringToFront, canOverlay, openOverlaySettings, speak } from "../../modules/bring-to-front";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -62,24 +63,20 @@ async function setupNotificationChannel() {
   }
 }
 
-async function scheduleRotationNotification(seconds, rotationNum, totalRotations) {
+async function scheduleRotationAlert(seconds) {
   await Notifications.cancelAllScheduledNotificationsAsync();
   if (seconds <= 0) return;
-  await setupNotificationChannel();
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "Rotation Time!",
-      body: `Rotation ${rotationNum} of ${totalRotations} is done. Time to sub!`,
-      sound: "default",
-      priority: Notifications.AndroidNotificationPriority.MAX,
-      ...(Platform.OS === "android" && { channelId: "rotation-timer" }),
-    },
-    trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, repeats: false },
-  });
+  if (Platform.OS === "android") {
+    const earlySeconds = Math.max(seconds - 10, 1);
+    try { await scheduleAlarm(earlySeconds); } catch (e) {}
+  }
 }
 
-async function cancelRotationNotification() {
+async function cancelRotationAlert() {
   await Notifications.cancelAllScheduledNotificationsAsync();
+  if (Platform.OS === "android") {
+    try { await cancelAlarm(); } catch (e) {}
+  }
 }
 
 export default function GameScreen() {
@@ -119,6 +116,7 @@ export default function GameScreen() {
   const [paidPlayers, setPaidPlayers] = useState(new Set());
   const [paymentAmount, setPaymentAmount] = useState(280);
   const [distributionMode, setDistributionMode] = useState("unequal_games");
+  const [clockTick, setClockTick] = useState(Date.now());
 
   useKeepAwake();
 
@@ -139,6 +137,7 @@ export default function GameScreen() {
   const startTimerRef = useRef(null);
   const transitionTimerRef = useRef(null);
   const transitionSecondsRef = useRef(0);
+  const lastCountdownRef = useRef(0);
 
   useEffect(() => { currentRotationRef.current = currentRotation; }, [currentRotation]);
   useEffect(() => { scheduleRef.current = schedule; }, [schedule]);
@@ -150,7 +149,24 @@ export default function GameScreen() {
   useEffect(() => { breakTimeRef.current = breakTime; }, [breakTime]);
 
   useEffect(() => {
-    Notifications.requestPermissionsAsync();
+    if (gameStatus !== "ready") return;
+    const id = setInterval(() => setClockTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [gameStatus]);
+
+  useEffect(() => {
+    canOverlay().then((allowed) => {
+      if (!allowed) {
+        Alert.alert(
+          "Permission Needed",
+          "To show the timer over other apps, enable \"Display over other apps\" for this app.",
+          [
+            { text: "Open Settings", onPress: () => openOverlaySettings() },
+            { text: "Later", style: "cancel" },
+          ]
+        );
+      }
+    }).catch(() => {});
     loadGame();
     const backHandler = BackHandler.addEventListener("hardwareBackPress", () => {
       handleExit();
@@ -166,21 +182,20 @@ export default function GameScreen() {
           timerEndTimeRef.current = null;
           setTimeRemaining(0);
           setIsRunning(false);
-          cancelRotationNotification();
+          cancelRotationAlert();
           handleRotationEnd();
         } else {
           setTimeRemaining(remaining);
+          if (remaining <= 10 && remaining > 0) {
+            bringToFront().catch(() => {});
+          }
         }
       }
-    });
-    const notifReceivedListener = Notifications.addNotificationReceivedListener(() => {
-      Vibration.vibrate([0, 500, 200, 500, 200, 500]);
     });
     return () => {
       backHandler.remove();
       appStateListener.remove();
-      notifReceivedListener.remove();
-      cancelRotationNotification();
+      cancelRotationAlert();
       if (timerRef.current) clearInterval(timerRef.current);
       if (breakTimerRef.current) clearInterval(breakTimerRef.current);
       if (transitionTimerRef.current) clearInterval(transitionTimerRef.current);
@@ -268,7 +283,7 @@ export default function GameScreen() {
     if (rot >= sched.length) {
       setGameStatus("completed");
       await updateGameStatus(gameId, "completed");
-      cancelRotationNotification();
+      cancelRotationAlert();
       Alert.alert("Game Over!", `All ${sched.length} rotations have been completed.`, [
         { text: "View Summary", onPress: () => {} },
         { text: "Go Home", onPress: () => router.replace("/") },
@@ -364,7 +379,6 @@ export default function GameScreen() {
             transitionTimerRef.current = null;
             setTransitionCountdown(0);
             setTransitionExpired(true);
-            Vibration.vibrate([0, 500, 200, 500]);
           } else {
             setTransitionCountdown(left);
           }
@@ -378,10 +392,11 @@ export default function GameScreen() {
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
+    lastCountdownRef.current = 0;
     setTimeRemaining((current) => {
       timerEndTimeRef.current = Date.now() + current * 1000;
       const secs = Math.max(Math.round(current), 1);
-      scheduleRotationNotification(secs, currentRotationRef.current, scheduleRef.current.length);
+      scheduleRotationAlert(secs);
       return current;
     });
     timerRef.current = setInterval(() => {
@@ -400,7 +415,7 @@ export default function GameScreen() {
           clearInterval(timerRef.current);
           timerRef.current = null;
           setIsRunning(false);
-          cancelRotationNotification();
+          cancelRotationAlert();
           const rot = currentRotationRef.current;
           const sched = scheduleRef.current;
           const left = sched.length - rot;
@@ -448,13 +463,20 @@ export default function GameScreen() {
         }
       }
 
+      if (remaining <= 10 && remaining > 0 && remaining !== lastCountdownRef.current) {
+        lastCountdownRef.current = remaining;
+        if (remaining === 10) bringToFront().catch(() => {});
+        speak(String(remaining)).catch(() => {});
+      }
+
       if (remaining <= 0) {
         clearInterval(timerRef.current);
         timerRef.current = null;
         timerEndTimeRef.current = null;
         setTimeRemaining(0);
         setIsRunning(false);
-        cancelRotationNotification();
+        cancelRotationAlert();
+        speak("Time is up").catch(() => {});
         handleRotationEnd();
       } else {
         setTimeRemaining(remaining);
@@ -472,7 +494,7 @@ export default function GameScreen() {
     }
     timerEndTimeRef.current = null;
     setIsRunning(false);
-    cancelRotationNotification();
+    cancelRotationAlert();
   }, []);
 
   const startBreak = useCallback(() => {
@@ -794,6 +816,91 @@ export default function GameScreen() {
     );
   };
 
+  const handleSkipRotation = useCallback(() => {
+    if (gameStatus !== "in_progress" || currentRotation >= schedule.length) return;
+    Alert.alert(
+      "Skip Rotation?",
+      `Are you sure you want to skip Rotation ${currentRotation} and move to the next one?`,
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes",
+          onPress: async () => {
+            pauseTimer();
+            if (breakTimerRef.current) {
+              clearInterval(breakTimerRef.current);
+              breakTimerRef.current = null;
+            }
+            if (breakStartRef.current) {
+              const elapsed = Math.floor((Date.now() - breakStartRef.current) / 1000);
+              const newBreakTotal = breakTimeRef.current + elapsed;
+              setBreakTime(newBreakTotal);
+              breakTimeRef.current = newBreakTotal;
+              breakStartRef.current = null;
+              try { await updateGameBreakTime(gameId, newBreakTotal); } catch (e) {}
+            }
+            setIsOnBreak(false);
+            setShowBreakModal(false);
+            if (transitionTimerRef.current) {
+              clearInterval(transitionTimerRef.current);
+              transitionTimerRef.current = null;
+            }
+            setTransitionCountdown(0);
+            setTransitionExpired(false);
+
+            const rot = currentRotationRef.current;
+            const sched = scheduleRef.current;
+            const gData = gameDataRef.current;
+            const currentIdx = rot - 1;
+
+            if (currentIdx >= 0 && currentIdx < sched.length) {
+              await updateRotationStatus(sched[currentIdx].id, "completed");
+              const rotPlayers = sched[currentIdx].players;
+              for (const player of rotPlayers) {
+                const existing = gData?.players.find((p) => p.id === player.id);
+                if (existing) {
+                  await updatePlayerStats(
+                    player.id,
+                    Math.round((existing.total_play_time || 0) + minutesPerGameRef.current),
+                    (existing.times_played || 0) + 1
+                  );
+                }
+              }
+            }
+
+            const nextRotation = rot + 1;
+            setCurrentRotation(nextRotation);
+            await updateGameRotation(gameId, nextRotation);
+            setTimeRemaining(rotationDurationRef.current);
+
+            if (nextRotation - 1 < sched.length) {
+              await updateRotationStatus(sched[nextRotation - 1].id, "active");
+            }
+
+            scrollToRotation(nextRotation - 1);
+
+            const fullData = await getFullGameData(gameId);
+            setGameData(fullData);
+            setSchedule(fullData.rotations);
+
+            if (nextRotation > sched.length) {
+              setGameStatus("completed");
+              await updateGameStatus(gameId, "completed");
+              cancelRotationAlert();
+              Alert.alert("Game Over!", `All ${sched.length} rotations have been completed.`, [
+                { text: "View Summary", onPress: () => {} },
+                { text: "Go Home", onPress: () => router.replace("/") },
+              ]);
+              return;
+            }
+
+            startTimer();
+          },
+        },
+      ]
+    );
+  }, [gameId, gameStatus, currentRotation, schedule, pauseTimer, startTimer]);
+
   const handleExit = () => {
     if (gameStatus === "in_progress") {
       Alert.alert("Leave Game?", "The game timer will stop.", [
@@ -816,7 +923,8 @@ export default function GameScreen() {
       return new Date(gameEndTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     }
     const totalMs = schedule.length * rotationDuration * 1000;
-    return new Date(Date.now() + totalMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const now = clockTick || Date.now();
+    return new Date(now + totalMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   })();
   const progress =
     gameStatus === "in_progress"
@@ -924,6 +1032,15 @@ export default function GameScreen() {
               <Text style={[s.btnText, { color: "#FB923C" }]}>Payment</Text>
             </TouchableOpacity>
           )}
+          {gameStatus === "in_progress" && currentRotation < schedule.length && (
+            <TouchableOpacity
+              style={[s.btn, { backgroundColor: "#1E293B", borderWidth: 1, borderColor: "#3B82F6", marginLeft: 10 }]}
+              onPress={handleSkipRotation}
+              activeOpacity={0.8}
+            >
+              <Text style={[s.btnText, { color: "#3B82F6" }]}>Skip</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {isOnBreak && (
@@ -966,7 +1083,7 @@ export default function GameScreen() {
           <View style={s.modalContent}>
             <View style={s.modalHeader}>
               <Text style={s.modalTitle}>Manage Players ({gameData?.players?.length || 0})</Text>
-              <TouchableOpacity onPress={() => { setShowManage(false); setLinkMode(false); setSelectedForLink([]); }}>
+              <TouchableOpacity onPress={() => { setShowManage(false); setLinkMode(false); setSelectedForLink([]); setClockTick(Date.now()); }}>
                 <Text style={s.modalClose}>Close</Text>
               </TouchableOpacity>
             </View>
