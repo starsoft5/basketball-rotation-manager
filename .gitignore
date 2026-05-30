@@ -46,3 +46,9 @@ yarn-error.*
 
 # Google Play Store service account key
 play-store-key.json
+
+# IDE
+.idea/
+
+# Module build outputs
+modules/**/android/build/
