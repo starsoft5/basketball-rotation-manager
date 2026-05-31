@@ -2,17 +2,19 @@ import { useState, useCallback } from "react";
 import {
   View,
   Text,
-  TouchableOpacity,
   FlatList,
   Alert,
   StyleSheet,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { getAllGames, deleteGame } from "../db/database";
+import AnimatedButton from "../components/AnimatedButton";
+import * as Haptics from "expo-haptics";
 
 export default function HistoryScreen() {
   const router = useRouter();
   const [games, setGames] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -25,7 +27,14 @@ export default function HistoryScreen() {
     setGames(allGames);
   };
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadGames();
+    setRefreshing(false);
+  };
+
   const handleDelete = (gameId, gameName) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
     Alert.alert("Delete Game", `Delete "${gameName}"?`, [
       { text: "Cancel", style: "cancel" },
       {
@@ -58,8 +67,10 @@ export default function HistoryScreen() {
       <FlatList
         data={games}
         keyExtractor={(item) => item.id.toString()}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
         renderItem={({ item }) => (
-          <TouchableOpacity
+          <AnimatedButton
             style={s.card}
             onPress={() => {
               if (item.status === "setup") {
@@ -69,7 +80,6 @@ export default function HistoryScreen() {
               }
             }}
             onLongPress={() => handleDelete(item.id, item.name)}
-            activeOpacity={0.7}
           >
             <View style={s.cardHeader}>
               <Text style={s.cardTitle} numberOfLines={1}>
@@ -93,7 +103,7 @@ export default function HistoryScreen() {
               </Text>
               <Text style={s.dateText}>{item.created_at}</Text>
             </View>
-          </TouchableOpacity>
+          </AnimatedButton>
         )}
         ListEmptyComponent={
           <View style={s.emptyWrap}>
@@ -114,7 +124,7 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0F172A", paddingHorizontal: 24, paddingTop: 16 },
   card: {
     backgroundColor: "#1E293B",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,

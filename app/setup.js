@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   Alert,
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +12,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { createGame, getSettings, saveSetting } from "../db/database";
+import AnimatedButton from "../components/AnimatedButton";
 
 export default function SetupScreen() {
   const router = useRouter();
@@ -169,9 +169,9 @@ export default function SetupScreen() {
       <ScrollView style={s.scroll}>
         <View style={s.headingRow}>
           <Text style={s.heading}>Game Setup</Text>
-          <TouchableOpacity onPress={handleOpenSettings} activeOpacity={0.7} style={s.settingsBtn}>
+          <AnimatedButton onPress={handleOpenSettings} style={s.settingsBtn}>
             <Text style={s.settingsIcon}>⚙️</Text>
-          </TouchableOpacity>
+          </AnimatedButton>
         </View>
 
         <View style={s.field}>
@@ -211,17 +211,16 @@ export default function SetupScreen() {
           </Text>
         </View>
 
-        <TouchableOpacity
+        <AnimatedButton
           style={[
             s.continueBtn,
             gameName.trim() ? s.btnActive : s.btnDisabled,
           ]}
           onPress={handleContinue}
           disabled={!gameName.trim()}
-          activeOpacity={0.8}
         >
           <Text style={s.continueBtnText}>Add Players →</Text>
-        </TouchableOpacity>
+        </AnimatedButton>
       </ScrollView>
 
       <Modal visible={showSettings} animationType="fade" transparent>
@@ -360,20 +359,18 @@ export default function SetupScreen() {
             </View>
 
             <View style={s.modalBtnRow}>
-              <TouchableOpacity
+              <AnimatedButton
                 style={s.cancelBtn}
                 onPress={() => setShowSettings(false)}
-                activeOpacity={0.8}
               >
                 <Text style={s.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </AnimatedButton>
+              <AnimatedButton
                 style={s.saveBtn}
                 onPress={handleSaveSettings}
-                activeOpacity={0.8}
               >
                 <Text style={s.saveBtnText}>Save</Text>
-              </TouchableOpacity>
+              </AnimatedButton>
             </View>
           </View>
           </ScrollView>
@@ -426,7 +423,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     backgroundColor: "#1E293B",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 14,
     marginBottom: 10,
     borderWidth: 1.5,
@@ -459,7 +456,7 @@ const s = StyleSheet.create({
   modeCardDesc: { color: "#94A3B8", fontSize: 12, lineHeight: 18 },
   infoCard: {
     backgroundColor: "#1E293B",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 24,
     borderWidth: 1,

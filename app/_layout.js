@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Slot } from "expo-router";
+import { useState, useRef, useEffect } from "react";
+import { Stack, useRouter, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { View, Text, TouchableOpacity, StyleSheet, BackHandler } from "react-native";
-import { useRouter, usePathname } from "expo-router";
+import { View, Text, StyleSheet, BackHandler } from "react-native";
+import AnimatedButton from "../components/AnimatedButton";
 import { checkLicense } from "../utils/license";
 
 function Header() {
@@ -53,11 +53,11 @@ function Header() {
   return (
     <View style={s.header}>
       {!isHome && (
-        <TouchableOpacity onPress={handleBack} style={s.backBtn}>
+        <AnimatedButton onPress={handleBack} style={s.backBtn}>
           <Text style={s.backText}>
             {backLabel}
           </Text>
-        </TouchableOpacity>
+        </AnimatedButton>
       )}
       {title && (
         <Text style={[s.headerTitle, isHome && s.headerTitleCenter]}>
@@ -118,7 +118,13 @@ export default function RootLayout() {
     <View style={s.container}>
       <StatusBar style="light" />
       <Header />
-      <Slot />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: "slide_from_right",
+          contentStyle: { backgroundColor: "#0F172A" },
+        }}
+      />
     </View>
   );
 }

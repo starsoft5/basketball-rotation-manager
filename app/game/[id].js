@@ -15,6 +15,8 @@ import {
   Platform,
   Animated,
 } from "react-native";
+import * as Haptics from "expo-haptics";
+import AnimatedButton from "../../components/AnimatedButton";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useKeepAwake } from "expo-keep-awake";
 import * as Notifications from "expo-notifications";
@@ -296,6 +298,7 @@ export default function GameScreen() {
       setGameStatus("completed");
       await updateGameStatus(gameId, "completed");
       cancelRotationAlert();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       Alert.alert("Game Over!", `All ${sched.length} rotations have been completed.`, [
         { text: "View Summary", onPress: () => router.push(`/summary/${gameId}`) },
         { text: "Go Home", onPress: () => router.replace("/") },
@@ -479,7 +482,10 @@ export default function GameScreen() {
 
       if (remaining <= 10 && remaining > 0 && remaining !== lastCountdownRef.current) {
         lastCountdownRef.current = remaining;
-        if (remaining === 10) bringToFront().catch(() => {});
+        if (remaining === 10) {
+          bringToFront().catch(() => {});
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+        }
         speak(String(remaining)).catch(() => {});
       }
 
@@ -490,6 +496,7 @@ export default function GameScreen() {
         setTimeRemaining(0);
         setIsRunning(false);
         cancelRotationAlert();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         speak("Time is up").catch(() => {});
         handleRotationEnd();
       } else {
@@ -780,6 +787,7 @@ export default function GameScreen() {
   };
 
   const handleMarkNotPlaying = (player) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
     Alert.alert(
       "Mark Not Playing",
       `Remove ${player.name} from all future rotations?`,
@@ -801,6 +809,7 @@ export default function GameScreen() {
   };
 
   const handleRemovePlayer = (player) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
     const isOnCourt = gameStatus === "in_progress" &&
       schedule[currentRotation - 1]?.players.some((p) => p.id === player.id);
 
@@ -994,17 +1003,17 @@ export default function GameScreen() {
 
         <View style={s.statsRow}>
           <View style={s.stat}>
-            <Text style={s.statLabel}>Play Time</Text>
+            <Text style={s.statLabel}>⏱ Play Time</Text>
             <Text style={s.statValue}>{totalGameTime}</Text>
           </View>
           {breakTime > 0 && (
             <View style={s.stat}>
-              <Text style={s.statLabel}>Breaks</Text>
+              <Text style={s.statLabel}>☕ Breaks</Text>
               <Text style={[s.statValue, { color: "#FBBF24" }]}>{formatTime(breakTime)}</Text>
             </View>
           )}
           <View style={s.stat}>
-            <Text style={s.statLabel}>Rotations</Text>
+            <Text style={s.statLabel}>🔄 Rotations</Text>
             <Text style={s.statValue}>
               {gameStatus === "completed" ? schedule.length : Math.max(currentRotation - 1, 0)}/{schedule.length}
             </Text>
@@ -1014,7 +1023,7 @@ export default function GameScreen() {
             onPress={gameStatus === "in_progress" ? openEndTimePicker : undefined}
             activeOpacity={gameStatus === "in_progress" ? 0.6 : 1}
           >
-            <Text style={s.statLabel}>Ends At</Text>
+            <Text style={s.statLabel}>🏁 Ends At</Text>
             <Text style={[
               s.statValue,
               gameStatus === "in_progress" && { color: "#FB923C" },
@@ -1029,74 +1038,70 @@ export default function GameScreen() {
 
         <View style={s.btnRow}>
           {gameStatus === "ready" ? (
-            <TouchableOpacity style={[s.btn, s.btnGreen]} onPress={handleStartGame} activeOpacity={0.8}>
+            <AnimatedButton style={[s.btn, s.btnGreen]} onPress={handleStartGame}>
               <View style={s.btnInner}>
                 <Text style={s.btnIcon}>{"▶"}</Text>
                 <Text style={s.btnText}>Start Game</Text>
               </View>
-            </TouchableOpacity>
+            </AnimatedButton>
           ) : gameStatus === "in_progress" ? (
             isOnBreak ? (
-              <TouchableOpacity
+              <AnimatedButton
                 style={[s.btn, s.btnGreen]}
                 onPress={endBreak}
-                activeOpacity={0.8}
               >
                 <View style={s.btnInner}>
                   <Text style={s.btnIcon}>{"▶"}</Text>
                   <Text style={s.btnText}>Resume</Text>
                 </View>
-              </TouchableOpacity>
+              </AnimatedButton>
             ) : (
-              <TouchableOpacity
+              <AnimatedButton
                 style={[s.btn, isRunning ? s.btnRed : s.btnGreen]}
                 onPress={isRunning ? startBreak : startTimer}
-                activeOpacity={0.8}
               >
                 <View style={s.btnInner}>
                   <Text style={s.btnIcon}>{isRunning ? "⏸" : "▶"}</Text>
                   <Text style={s.btnText}>{isRunning ? "Break" : "Resume"}</Text>
                 </View>
-              </TouchableOpacity>
+              </AnimatedButton>
             )
           ) : (
-            <TouchableOpacity style={[s.btn, s.btnGreen]} onPress={() => router.push(`/summary/${gameId}`)} activeOpacity={0.8}>
+            <AnimatedButton style={[s.btn, s.btnGreen]} onPress={() => router.push(`/summary/${gameId}`)}>
               <View style={s.btnInner}>
                 <Text style={s.btnIcon}>{"☰"}</Text>
                 <Text style={s.btnText}>Summary</Text>
               </View>
-            </TouchableOpacity>
+            </AnimatedButton>
           )}
           {gameStatus !== "ready" && (
-            <TouchableOpacity
+            <AnimatedButton
               style={[s.btn, s.btnPayment]}
               onPress={() => setShowPayment(true)}
-              activeOpacity={0.8}
             >
               <View style={s.btnInner}>
                 <Text style={[s.btnText, { color: "#FB923C" }]}>Payment</Text>
               </View>
-            </TouchableOpacity>
+            </AnimatedButton>
           )}
           {gameStatus === "completed" && (
-            <TouchableOpacity style={[s.btn, s.btnOrange]} onPress={() => router.replace("/")} activeOpacity={0.8}>
+            <AnimatedButton style={[s.btn, s.btnOrange]} onPress={() => router.replace("/")}>
               <View style={s.btnInner}>
                 <Text style={s.btnIcon}>{"⌂"}</Text>
                 <Text style={s.btnText}>Home</Text>
               </View>
-            </TouchableOpacity>
+            </AnimatedButton>
           )}
           {gameStatus === "in_progress" && currentRotation < schedule.length && (
-            <TouchableOpacity
+            <AnimatedButton
               style={[s.btn, s.btnSkip]}
               onPress={handleSkipRotation}
-              activeOpacity={0.8}
             >
               <View style={s.btnInner}>
                 <Text style={[s.btnIcon, { color: "#3B82F6" }]}>{"⏭"}</Text>
                 <Text style={[s.btnText, { color: "#3B82F6" }]}>Skip</Text>
               </View>
-            </TouchableOpacity>
+            </AnimatedButton>
           )}
         </View>
 
@@ -1126,13 +1131,12 @@ export default function GameScreen() {
       </View>
 
       {(gameStatus === "ready" || gameStatus === "in_progress") && (
-        <TouchableOpacity
+        <AnimatedButton
           style={s.manageBtn}
           onPress={() => setShowManage(true)}
-          activeOpacity={0.8}
         >
           <Text style={s.manageBtnText}>Manage Players ({gameData?.players?.length || 0})</Text>
-        </TouchableOpacity>
+        </AnimatedButton>
       )}
 
       <Modal visible={showManage} animationType="slide" transparent>
@@ -1307,20 +1311,18 @@ export default function GameScreen() {
               </TouchableOpacity>
             </View>
             <View style={s.etBtnRow}>
-              <TouchableOpacity
+              <AnimatedButton
                 style={s.etCancelBtn}
                 onPress={() => setShowEndTimePicker(false)}
-                activeOpacity={0.8}
               >
                 <Text style={s.etCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
+              </AnimatedButton>
+              <AnimatedButton
                 style={s.etSaveBtn}
                 onPress={saveEndTime}
-                activeOpacity={0.8}
               >
                 <Text style={s.etSaveText}>Save</Text>
-              </TouchableOpacity>
+              </AnimatedButton>
             </View>
           </View>
         </View>
@@ -1351,7 +1353,7 @@ export default function GameScreen() {
                 </View>
               ))}
             </View>
-            <TouchableOpacity
+            <AnimatedButton
               style={{
                 backgroundColor: "#16A34A",
                 paddingVertical: 14,
@@ -1368,12 +1370,11 @@ export default function GameScreen() {
                 setShowBreakModal(false);
                 endBreak();
               }}
-              activeOpacity={0.8}
             >
               <Text style={{ color: "#FFF", textAlign: "center", fontWeight: "bold", fontSize: 16 }}>
                 {transitionCountdown > 0 ? "Start Now" : "End Break & Resume"}
               </Text>
-            </TouchableOpacity>
+            </AnimatedButton>
           </View>
         </View>
       </Modal>
@@ -1431,7 +1432,7 @@ export default function GameScreen() {
                 Total: {paidPlayers.size * paymentAmount}
               </Text>
             </View>
-            <TouchableOpacity
+            <AnimatedButton
               style={{
                 backgroundColor: "#1E293B",
                 paddingVertical: 14,
@@ -1441,12 +1442,11 @@ export default function GameScreen() {
                 borderColor: "#334155",
               }}
               onPress={() => setShowPayment(false)}
-              activeOpacity={0.8}
             >
               <Text style={{ color: "#FFF", textAlign: "center", fontWeight: "bold", fontSize: 16 }}>
                 Close
               </Text>
-            </TouchableOpacity>
+            </AnimatedButton>
           </View>
         </View>
       </Modal>

@@ -60,7 +60,8 @@ const s = StyleSheet.create({
   container: {
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 0,
+    marginTop: 10,
+    marginBottom: 10,
   },
   svg: {
     position: "absolute",

@@ -1,6 +1,7 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Alert, Platform } from "react-native";
 import { useState } from "react";
 import { checkLicense } from "../utils/license";
+import AnimatedButton from "../components/AnimatedButton";
 
 async function shareApp(setSharing) {
   if (Platform.OS !== "android") {
@@ -40,16 +41,15 @@ export default function ShareScreen() {
           Send the app to friends and teammates so they can install it on their Android devices.
         </Text>
 
-        <TouchableOpacity
+        <AnimatedButton
           style={[s.shareButton, sharing && s.shareButtonDisabled]}
           onPress={() => shareApp(setSharing)}
-          activeOpacity={0.8}
           disabled={sharing}
         >
           <Text style={s.shareButtonText}>
             {sharing ? "Preparing APK..." : "📤 Share App"}
           </Text>
-        </TouchableOpacity>
+        </AnimatedButton>
 
         <View style={s.divider} />
 

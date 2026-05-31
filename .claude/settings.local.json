@@ -200,7 +200,9 @@
       "PowerShell(handle64 \"C:\\\\claudeapps\\\\basketball-rotation\\\\android\" 2>&1 | Select-Object -First 20)",
       "PowerShell([System.IO.Directory]::Delete\\(\"C:\\\\claudeapps\\\\basketball-rotation\\\\android\\\\app\\\\build\", $true\\) 2>&1)",
       "PowerShell(cmd /c \"dir C:\\\\claudeapps\\\\basketball-rotation\\\\android\" 2>&1)",
-      "PowerShell(Rename-Item *)"
+      "PowerShell(Rename-Item *)",
+      "Bash(Get-ChildItem -Path C:\\\\claudeapps\\\\basketball-rotation -Recurse -Depth 2)",
+      "Bash(Select-Object -Property FullName)"
     ]
   }
 }

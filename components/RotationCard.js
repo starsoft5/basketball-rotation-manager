@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, Platform } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
 
 export default function RotationCard({ rotation, isActive, isCompleted }) {
   const borderColor = isActive
@@ -8,12 +9,15 @@ export default function RotationCard({ rotation, isActive, isCompleted }) {
       : "#334155";
 
   return (
-    <View style={[
-      s.card,
-      { borderColor },
-      isActive && s.cardActive,
-      !isActive && s.cardShadow,
-    ]}>
+    <Animated.View
+      entering={FadeIn.duration(400)}
+      style={[
+        s.card,
+        { borderColor },
+        isActive && s.cardActive,
+        !isActive && s.cardShadow,
+      ]}
+    >
       <View style={s.headerRow}>
         <View style={s.headerLeft}>
           <Text style={s.rotTitle}>Rotation {rotation.rotationNumber}</Text>
@@ -59,13 +63,13 @@ export default function RotationCard({ rotation, isActive, isCompleted }) {
           </View>
         ))}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 const s = StyleSheet.create({
   card: {
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     borderWidth: 2,

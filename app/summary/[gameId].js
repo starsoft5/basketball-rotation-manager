@@ -3,12 +3,12 @@ import {
   View,
   Text,
   FlatList,
-  TouchableOpacity,
   StyleSheet,
   ScrollView,
 } from "react-native";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { getFullGameData } from "../../db/database";
+import AnimatedButton from "../../components/AnimatedButton";
 
 export default function SummaryScreen() {
   const router = useRouter();
@@ -113,19 +113,19 @@ export default function SummaryScreen() {
       <View style={s.statsGrid}>
         <View style={s.statCard}>
           <Text style={s.statCardValue}>{completedRotations}</Text>
-          <Text style={s.statCardLabel}>Rotations</Text>
+          <Text style={s.statCardLabel}>🔄 Rotations</Text>
         </View>
         <View style={s.statCard}>
           <Text style={s.statCardValue}>{formatDuration(totalPlayMinutes)}</Text>
-          <Text style={s.statCardLabel}>Play Time</Text>
+          <Text style={s.statCardLabel}>⏱ Play Time</Text>
         </View>
         <View style={s.statCard}>
           <Text style={s.statCardValue}>{formatDuration(breakMinutes)}</Text>
-          <Text style={s.statCardLabel}>Break Time</Text>
+          <Text style={s.statCardLabel}>☕ Break Time</Text>
         </View>
         <View style={s.statCard}>
           <Text style={s.statCardValue}>{players.length}</Text>
-          <Text style={s.statCardLabel}>Players</Text>
+          <Text style={s.statCardLabel}>👥 Players</Text>
         </View>
       </View>
 
@@ -154,20 +154,18 @@ export default function SummaryScreen() {
       </View>
 
       <View style={s.actions}>
-        <TouchableOpacity
+        <AnimatedButton
           style={[s.actionBtn, s.actionBtnPrimary]}
           onPress={() => router.replace("/")}
-          activeOpacity={0.8}
         >
           <Text style={s.actionBtnText}>Go Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
+        </AnimatedButton>
+        <AnimatedButton
           style={[s.actionBtn, s.actionBtnSecondary]}
           onPress={() => router.push("/history")}
-          activeOpacity={0.8}
         >
           <Text style={s.actionBtnText}>View History</Text>
-        </TouchableOpacity>
+        </AnimatedButton>
       </View>
     </ScrollView>
   );
@@ -202,7 +200,7 @@ const s = StyleSheet.create({
   },
   statCard: {
     backgroundColor: "#1E293B",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 14,
     flex: 1,
     minWidth: "45%",
@@ -215,7 +213,7 @@ const s = StyleSheet.create({
 
   fairnessCard: {
     backgroundColor: "#1E293B",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 14,
     marginBottom: 16,
     borderWidth: 1,

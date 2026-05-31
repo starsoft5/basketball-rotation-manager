@@ -13,6 +13,15 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { addPlayer, getPlayers, updateGameStatus, deletePlayer, getSettings } from "../../db/database";
+import AnimatedButton from "../../components/AnimatedButton";
+import * as Haptics from "expo-haptics";
+
+const AVATAR_COLORS = ["#F97316", "#3B82F6", "#8B5CF6", "#EC4899", "#14B8A6", "#EAB308", "#EF4444", "#06B6D4"];
+function getAvatarColor(name) {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
 import { calcRotations, calcRotationsEqualTime, formatTime } from "../../utils/scheduler";
 import * as ImagePicker from "expo-image-picker";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
@@ -167,6 +176,7 @@ export default function PlayerEntryScreen() {
   };
 
   const handleRemovePlayer = (player) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
     Alert.alert("Remove Player", `Remove ${player.name} from the game?`, [
       { text: "Cancel", style: "cancel" },
       {
@@ -241,13 +251,13 @@ export default function PlayerEntryScreen() {
             onSubmitEditing={handleAddPlayer}
             returnKeyType="done"
           />
-          <TouchableOpacity
+          <AnimatedButton
             style={[s.addBtn, playerName.trim() ? s.addActive : s.addDisabled]}
             onPress={handleAddPlayer}
             disabled={!playerName.trim()}
           >
             <Text style={s.addBtnText}>Add</Text>
-          </TouchableOpacity>
+          </AnimatedButton>
         </View>
 
         {scanning ? (
@@ -257,12 +267,12 @@ export default function PlayerEntryScreen() {
           </View>
         ) : (
           <View style={s.scanRow}>
-            <TouchableOpacity style={s.scanBtn} onPress={handleScanList} activeOpacity={0.8}>
+            <AnimatedButton style={s.scanBtn} onPress={handleScanList}>
               <Text style={s.scanBtnText}>Scan List</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.scanBtn} onPress={handlePickImage} activeOpacity={0.8}>
+            </AnimatedButton>
+            <AnimatedButton style={s.scanBtn} onPress={handlePickImage}>
               <Text style={s.scanBtnText}>Pick Photo</Text>
-            </TouchableOpacity>
+            </AnimatedButton>
           </View>
         )}
 
@@ -272,7 +282,7 @@ export default function PlayerEntryScreen() {
           style={s.list}
           renderItem={({ item }) => (
             <View style={s.playerRow}>
-              <View style={s.jerseyCircle}>
+              <View style={[s.jerseyCircle, { backgroundColor: getAvatarColor(item.name) }]}>
                 <Text style={s.jerseyText}>{item.jersey_number}</Text>
               </View>
               <Text style={s.playerName}>{item.name}</Text>
@@ -290,21 +300,20 @@ export default function PlayerEntryScreen() {
             </View>
           }
           ListFooterComponent={
-            <TouchableOpacity
+            <AnimatedButton
               style={[
                 s.startBtn,
                 players.length >= 10 ? s.startReady : s.startDisabled,
               ]}
               onPress={handleStartGame}
               disabled={players.length < 10}
-              activeOpacity={0.8}
             >
               <Text style={s.startBtnText}>
                 {players.length >= 10
                   ? `Start Game with ${players.length} players`
                   : `Need ${10 - players.length} more players`}
               </Text>
-            </TouchableOpacity>
+            </AnimatedButton>
           }
         />
       </View>
@@ -331,7 +340,7 @@ const s = StyleSheet.create({
   badgeText: { color: "#FB923C", fontWeight: "600", fontSize: 13 },
   statsCard: {
     backgroundColor: "#1E293B",
-    borderRadius: 10,
+    borderRadius: 16,
     padding: 12,
     marginBottom: 12,
     borderWidth: 1,
@@ -362,7 +371,7 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#1E293B",
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 12,
     marginBottom: 8,

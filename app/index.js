@@ -1,8 +1,9 @@
 import { useState, useCallback } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { getSettings } from "../db/database";
+import AnimatedButton from "../components/AnimatedButton";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -33,29 +34,26 @@ export default function HomeScreen() {
         Manage player rotations for your pickup games
       </Text>
 
-      <TouchableOpacity
+      <AnimatedButton
         style={s.primaryBtn}
         onPress={() => router.push("/setup")}
-        activeOpacity={0.8}
       >
         <Text style={s.primaryBtnText}>New Game</Text>
-      </TouchableOpacity>
+      </AnimatedButton>
 
-      <TouchableOpacity
+      <AnimatedButton
         style={s.secondaryBtn}
         onPress={() => router.push("/history")}
-        activeOpacity={0.8}
       >
         <Text style={s.secondaryBtnText}>Game History</Text>
-      </TouchableOpacity>
+      </AnimatedButton>
 
-      <TouchableOpacity
+      <AnimatedButton
         style={[s.secondaryBtn, s.shareBtn]}
         onPress={() => router.push("/share")}
-        activeOpacity={0.8}
       >
         <Text style={s.secondaryBtnText}>📲 Share to Another Device</Text>
-      </TouchableOpacity>
+      </AnimatedButton>
 
       <View style={s.infoCard}>
         <Text style={s.infoTitle}>How it works:</Text>
@@ -135,7 +133,7 @@ const s = StyleSheet.create({
   infoCard: {
     marginTop: 12,
     backgroundColor: "#1E293B",
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
     width: "100%",
   },
