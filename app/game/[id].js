@@ -13,6 +13,7 @@ import {
   StyleSheet,
   Vibration,
   Platform,
+  Animated,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useKeepAwake } from "expo-keep-awake";
@@ -40,6 +41,7 @@ import {
 } from "../../db/database";
 import { generateSchedule, generateScheduleEqualTime, calcRotations, calcRotationsEqualTime, formatTime } from "../../utils/scheduler";
 import RotationCard from "../../components/RotationCard";
+import CircularTimer from "../../components/CircularTimer";
 import { scheduleAlarm, cancelAlarm, bringToFront, canOverlay, openOverlaySettings, speak } from "../../modules/bring-to-front";
 
 Notifications.setNotificationHandler({
@@ -117,6 +119,7 @@ export default function GameScreen() {
   const [paymentAmount, setPaymentAmount] = useState(280);
   const [distributionMode, setDistributionMode] = useState("unequal_games");
   const [clockTick, setClockTick] = useState(Date.now());
+  const [timerBlink, setTimerBlink] = useState(false);
 
   useKeepAwake();
 
@@ -138,6 +141,7 @@ export default function GameScreen() {
   const transitionTimerRef = useRef(null);
   const transitionSecondsRef = useRef(0);
   const lastCountdownRef = useRef(0);
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => { currentRotationRef.current = currentRotation; }, [currentRotation]);
   useEffect(() => { scheduleRef.current = schedule; }, [schedule]);
@@ -153,6 +157,14 @@ export default function GameScreen() {
     const id = setInterval(() => setClockTick(Date.now()), 1000);
     return () => clearInterval(id);
   }, [gameStatus]);
+
+  useEffect(() => {
+    if (timeRemaining <= 10 && timeRemaining > 0 && isRunning) {
+      const id = setInterval(() => setTimerBlink((v) => !v), 500);
+      return () => { clearInterval(id); setTimerBlink(false); };
+    }
+    setTimerBlink(false);
+  }, [timeRemaining <= 10 && timeRemaining > 0 && isRunning]);
 
   useEffect(() => {
     canOverlay().then((allowed) => {
@@ -285,7 +297,7 @@ export default function GameScreen() {
       await updateGameStatus(gameId, "completed");
       cancelRotationAlert();
       Alert.alert("Game Over!", `All ${sched.length} rotations have been completed.`, [
-        { text: "View Summary", onPress: () => {} },
+        { text: "View Summary", onPress: () => router.push(`/summary/${gameId}`) },
         { text: "Go Home", onPress: () => router.replace("/") },
       ]);
       return;
@@ -322,6 +334,7 @@ export default function GameScreen() {
               setGameStatus("completed");
               await updateGameStatus(gameId, "completed");
               Alert.alert("Game Over!", `Game ended after ${rot} rotation${rot !== 1 ? "s" : ""}.`, [
+                { text: "View Summary", onPress: () => router.push(`/summary/${gameId}`) },
                 { text: "Go Home", onPress: () => router.replace("/") },
               ]);
             },
@@ -401,7 +414,7 @@ export default function GameScreen() {
     });
     timerRef.current = setInterval(() => {
       const now = Date.now();
-      const remaining = Math.round((timerEndTimeRef.current - now) / 1000);
+      const remaining = Math.ceil((timerEndTimeRef.current - now) / 1000);
 
       const endT = gameEndTimeRef.current;
       if (endT && endT > 0) {
@@ -430,6 +443,7 @@ export default function GameScreen() {
                   setGameStatus("completed");
                   await updateGameStatus(gameId, "completed");
                   Alert.alert("Game Over!", `Game ended after rotation ${rot}.`, [
+                    { text: "View Summary", onPress: () => router.push(`/summary/${gameId}`) },
                     { text: "Go Home", onPress: () => router.replace("/") },
                   ]);
                 },
@@ -481,7 +495,7 @@ export default function GameScreen() {
       } else {
         setTimeRemaining(remaining);
       }
-    }, 1000);
+    }, 500);
     setIsRunning(true);
   }, [handleRotationEnd]);
 
@@ -888,7 +902,7 @@ export default function GameScreen() {
               await updateGameStatus(gameId, "completed");
               cancelRotationAlert();
               Alert.alert("Game Over!", `All ${sched.length} rotations have been completed.`, [
-                { text: "View Summary", onPress: () => {} },
+                { text: "View Summary", onPress: () => router.push(`/summary/${gameId}`) },
                 { text: "Go Home", onPress: () => router.replace("/") },
               ]);
               return;
@@ -932,6 +946,20 @@ export default function GameScreen() {
         ((rotationDuration - timeRemaining) / rotationDuration / schedule.length) * 100
       : gameStatus === "completed" ? 100 : 0;
 
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: progress,
+      duration: 400,
+      useNativeDriver: false,
+    }).start();
+  }, [progress]);
+
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ["0%", "100%"],
+    extrapolate: "clamp",
+  });
+
   if (!gameData || schedule.length === 0) {
     return (
       <View style={s.loadingWrap}>
@@ -943,21 +971,25 @@ export default function GameScreen() {
   return (
     <View style={s.container}>
       <View style={s.header}>
+        <View style={s.headerGradient} />
         <Text style={s.gameName}>{gameData.game.name}</Text>
 
-        <View style={s.timerWrap}>
-          <Text style={s.timer}>{formatTime(timeRemaining)}</Text>
-          <Text style={s.timerSub}>
-            {gameStatus === "ready"
+        <CircularTimer
+          timeRemaining={timeRemaining}
+          totalDuration={rotationDuration}
+          formattedTime={formatTime(timeRemaining)}
+          blink={timerBlink}
+          subtitle={
+            gameStatus === "ready"
               ? "Ready to start"
               : gameStatus === "completed"
                 ? "Game Complete"
-                : `Rotation ${currentRotation} of ${schedule.length}`}
-          </Text>
-        </View>
+                : `Rotation ${currentRotation} of ${schedule.length}`
+          }
+        />
 
         <View style={s.progressBg}>
-          <View style={[s.progressFill, { width: `${Math.min(progress, 100)}%` }]} />
+          <Animated.View style={[s.progressFill, { width: progressWidth }]} />
         </View>
 
         <View style={s.statsRow}>
@@ -998,7 +1030,10 @@ export default function GameScreen() {
         <View style={s.btnRow}>
           {gameStatus === "ready" ? (
             <TouchableOpacity style={[s.btn, s.btnGreen]} onPress={handleStartGame} activeOpacity={0.8}>
-              <Text style={s.btnText}>Start Game</Text>
+              <View style={s.btnInner}>
+                <Text style={s.btnIcon}>{"▶"}</Text>
+                <Text style={s.btnText}>Start Game</Text>
+              </View>
             </TouchableOpacity>
           ) : gameStatus === "in_progress" ? (
             isOnBreak ? (
@@ -1007,7 +1042,10 @@ export default function GameScreen() {
                 onPress={endBreak}
                 activeOpacity={0.8}
               >
-                <Text style={s.btnText}>End Break & Resume</Text>
+                <View style={s.btnInner}>
+                  <Text style={s.btnIcon}>{"▶"}</Text>
+                  <Text style={s.btnText}>Resume</Text>
+                </View>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
@@ -1015,30 +1053,49 @@ export default function GameScreen() {
                 onPress={isRunning ? startBreak : startTimer}
                 activeOpacity={0.8}
               >
-                <Text style={s.btnText}>{isRunning ? "Break" : "Resume"}</Text>
+                <View style={s.btnInner}>
+                  <Text style={s.btnIcon}>{isRunning ? "⏸" : "▶"}</Text>
+                  <Text style={s.btnText}>{isRunning ? "Break" : "Resume"}</Text>
+                </View>
               </TouchableOpacity>
             )
           ) : (
-            <TouchableOpacity style={[s.btn, s.btnOrange]} onPress={() => router.replace("/")} activeOpacity={0.8}>
-              <Text style={s.btnText}>Back to Home</Text>
+            <TouchableOpacity style={[s.btn, s.btnGreen]} onPress={() => router.push(`/summary/${gameId}`)} activeOpacity={0.8}>
+              <View style={s.btnInner}>
+                <Text style={s.btnIcon}>{"☰"}</Text>
+                <Text style={s.btnText}>Summary</Text>
+              </View>
             </TouchableOpacity>
           )}
           {gameStatus !== "ready" && (
             <TouchableOpacity
-              style={[s.btn, { backgroundColor: "#1E293B", borderWidth: 1, borderColor: "#FB923C", marginLeft: 10 }]}
+              style={[s.btn, s.btnPayment]}
               onPress={() => setShowPayment(true)}
               activeOpacity={0.8}
             >
-              <Text style={[s.btnText, { color: "#FB923C" }]}>Payment</Text>
+              <View style={s.btnInner}>
+                <Text style={[s.btnText, { color: "#FB923C" }]}>Payment</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+          {gameStatus === "completed" && (
+            <TouchableOpacity style={[s.btn, s.btnOrange]} onPress={() => router.replace("/")} activeOpacity={0.8}>
+              <View style={s.btnInner}>
+                <Text style={s.btnIcon}>{"⌂"}</Text>
+                <Text style={s.btnText}>Home</Text>
+              </View>
             </TouchableOpacity>
           )}
           {gameStatus === "in_progress" && currentRotation < schedule.length && (
             <TouchableOpacity
-              style={[s.btn, { backgroundColor: "#1E293B", borderWidth: 1, borderColor: "#3B82F6", marginLeft: 10 }]}
+              style={[s.btn, s.btnSkip]}
               onPress={handleSkipRotation}
               activeOpacity={0.8}
             >
-              <Text style={[s.btnText, { color: "#3B82F6" }]}>Skip</Text>
+              <View style={s.btnInner}>
+                <Text style={[s.btnIcon, { color: "#3B82F6" }]}>{"⏭"}</Text>
+                <Text style={[s.btnText, { color: "#3B82F6" }]}>Skip</Text>
+              </View>
             </TouchableOpacity>
           )}
         </View>
@@ -1424,23 +1481,32 @@ const s = StyleSheet.create({
   header: {
     backgroundColor: "#1E293B",
     paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 16,
+    paddingTop: 0,
+    paddingBottom: 4,
     borderBottomWidth: 1,
     borderBottomColor: "#334155",
+    overflow: "hidden",
   },
-  gameName: { color: "#94A3B8", fontSize: 13, textAlign: "center", marginBottom: 4 },
-  timerWrap: { alignItems: "center", marginBottom: 12 },
-  timer: { fontSize: 56, fontWeight: "bold", color: "#FFF", letterSpacing: 4 },
-  timerSub: { color: "#94A3B8", fontSize: 13, marginTop: 4 },
-  progressBg: { width: "100%", backgroundColor: "#334155", height: 5, borderRadius: 3, marginBottom: 12 },
-  progressFill: { backgroundColor: "#F97316", height: 5, borderRadius: 3 },
-  statsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 12 },
+  headerGradient: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#263348",
+    opacity: 0.4,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  gameName: { color: "#94A3B8", fontSize: 13, textAlign: "center", marginBottom: 0 },
+  progressBg: { width: "100%", backgroundColor: "#1E293B", height: 5, borderRadius: 3, marginBottom: 4 },
+  progressFill: { backgroundColor: "#3B82F6", height: 5, borderRadius: 3 },
+  statsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
   stat: { alignItems: "center" },
   statLabel: { color: "#94A3B8", fontSize: 11 },
   statValue: { color: "#FFF", fontWeight: "bold", fontSize: 14 },
-  btnRow: { flexDirection: "row", gap: 12 },
+  btnRow: { flexDirection: "row", gap: 6 },
   btn: { flex: 1, paddingVertical: 12, borderRadius: 12 },
+  btnPayment: { backgroundColor: "#1E293B", borderWidth: 1, borderColor: "#FB923C" },
+  btnSkip: { backgroundColor: "#1E293B", borderWidth: 1, borderColor: "#3B82F6" },
+  btnInner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
+  btnIcon: { color: "#FFF", fontSize: 16 },
   btnHalf: { flex: 1 },
   btnThird: { flex: 1 },
   btnGreen: { backgroundColor: "#16A34A" },

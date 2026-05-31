@@ -189,7 +189,18 @@
       "PowerShell($apk = Get-Item \"C:\\\\claudeapps\\\\basketball-rotation\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" -ErrorAction SilentlyContinue; if \\($apk\\) { Write-Output \"Modified: $\\($apk.LastWriteTime\\), Size: $\\([math]::Round\\($apk.Length / 1MB, 2\\)\\) MB\" } else { Write-Output \"Not found\" })",
       "PowerShell($apk = Get-Item \"C:\\\\claudeapps\\\\basketball-rotation\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" -ErrorAction SilentlyContinue; Write-Output \"Modified: $\\($apk.LastWriteTime\\), Size: $\\([math]::Round\\($apk.Length / 1MB, 2\\)\\) MB\")",
       "PowerShell($apk = Get-Item \"C:\\\\claudeapps\\\\basketball-rotation\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\"; Write-Output \"APK: $\\($apk.FullName\\)\"; Write-Output \"Size: $\\([math]::Round\\($apk.Length / 1MB, 2\\)\\) MB\"; Write-Output \"Built: $\\($apk.LastWriteTime\\)\")",
-      "Bash(NODE_TLS_REJECT_UNAUTHORIZED=0 npx expo install expo-speech)"
+      "Bash(NODE_TLS_REJECT_UNAUTHORIZED=0 npx expo install expo-speech)",
+      "Bash(Get-ChildItem -Path \"C:\\\\claudeapps\\\\basketball-rotation\" -Recurse -Depth 2)",
+      "Bash(grep -E \"\\\\.\\(tsx?|json\\)$\")",
+      "Bash(Select-Object -First 100)",
+      "Bash(Format-Table FullName)",
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = '0'; npx expo export --platform android 2>&1 | Select-Object -Last 30)",
+      "Bash(adb logcat *)",
+      "PowerShell(cmd /c \"rmdir /s /q C:\\\\claudeapps\\\\basketball-rotation\\\\android\" 2>&1)",
+      "PowerShell(handle64 \"C:\\\\claudeapps\\\\basketball-rotation\\\\android\" 2>&1 | Select-Object -First 20)",
+      "PowerShell([System.IO.Directory]::Delete\\(\"C:\\\\claudeapps\\\\basketball-rotation\\\\android\\\\app\\\\build\", $true\\) 2>&1)",
+      "PowerShell(cmd /c \"dir C:\\\\claudeapps\\\\basketball-rotation\\\\android\" 2>&1)",
+      "PowerShell(Rename-Item *)"
     ]
   }
 }

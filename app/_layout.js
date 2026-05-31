@@ -127,11 +127,11 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0F172A" },
   header: {
     backgroundColor: "#1E293B",
-    paddingTop: 48,
-    paddingBottom: 14,
+    paddingTop: 36,
+    paddingBottom: 6,
     paddingHorizontal: 16,
   },
-  backBtn: { marginBottom: 4 },
+  backBtn: { marginBottom: 2 },
   backText: { color: "#FB923C", fontSize: 14, fontWeight: "600" },
   headerTitle: {
     color: "#FB923C",

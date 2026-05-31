@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Platform } from "react-native";
 
 export default function RotationCard({ rotation, isActive, isCompleted }) {
   const borderColor = isActive
@@ -8,7 +8,12 @@ export default function RotationCard({ rotation, isActive, isCompleted }) {
       : "#334155";
 
   return (
-    <View style={[s.card, { borderColor }]}>
+    <View style={[
+      s.card,
+      { borderColor },
+      isActive && s.cardActive,
+      !isActive && s.cardShadow,
+    ]}>
       <View style={s.headerRow}>
         <View style={s.headerLeft}>
           <Text style={s.rotTitle}>Rotation {rotation.rotationNumber}</Text>
@@ -65,6 +70,34 @@ const s = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 2,
     backgroundColor: "#1E293B",
+  },
+  cardShadow: {
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  cardActive: {
+    ...Platform.select({
+      ios: {
+        shadowColor: "#F97316",
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.5,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+        borderWidth: 2,
+        backgroundColor: "#1E293B",
+      },
+    }),
   },
   headerRow: {
     flexDirection: "row",
