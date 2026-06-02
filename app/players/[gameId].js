@@ -4,9 +4,8 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  FlatList,
+  ScrollView,
   Alert,
-  KeyboardAvoidingView,
   Platform,
   StyleSheet,
   ActivityIndicator,
@@ -31,6 +30,7 @@ export default function PlayerEntryScreen() {
   const { gameId } = useLocalSearchParams();
   const [playerName, setPlayerName] = useState("");
   const [players, setPlayers] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const [scanning, setScanning] = useState(false);
   const [gameTotalMinutes, setGameTotalMinutes] = useState(120);
   const [equalTimeTotalMinutes, setEqualTimeTotalMinutes] = useState(120);
@@ -184,32 +184,52 @@ export default function PlayerEntryScreen() {
         style: "destructive",
         onPress: async () => {
           await deletePlayer(player.id);
+          setSelectedIds((prev) => { const next = new Set(prev); next.delete(player.id); return next; });
           await loadPlayers();
         },
       },
     ]);
   };
 
+  const toggleSelect = (playerId) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(playerId)) {
+        next.delete(playerId);
+      } else {
+        if (next.size >= 10) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+          Alert.alert("Maximum Reached", "Only 10 players can be selected per game.");
+          return prev;
+        }
+        next.add(playerId);
+      }
+      return next;
+    });
+  };
+
   const handleStartGame = async () => {
-    if (players.length < 10) {
-      Alert.alert("Error", "Need at least 10 players to start.");
+    if (selectedIds.size < 10) {
+      Alert.alert("Error", `Select 10 players to start. (${selectedIds.size} selected)`);
       return;
     }
     await updateGameStatus(parseInt(gameId, 10), "ready");
-    router.replace(`/game/${gameId}`);
+    const ids = Array.from(selectedIds).join(",");
+    router.replace(`/game/${gameId}?firstRotation=${ids}`);
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={s.flex}
-    >
-      <View style={s.container}>
+    <View style={s.flex}>
+      <ScrollView
+        style={s.container}
+        contentContainerStyle={s.scrollContent}
+        keyboardShouldPersistTaps="always"
+      >
         <View style={s.headerRow}>
           <Text style={s.headerText}>Players: {players.length}</Text>
           <View style={s.badge}>
             <Text style={s.badgeText}>
-              {players.length < 10 ? `Need ${10 - players.length} more` : "Ready!"}
+              {players.length < 10 ? `Need ${10 - players.length} more` : `Selected: ${selectedIds.size}/10`}
             </Text>
           </View>
         </View>
@@ -276,54 +296,67 @@ export default function PlayerEntryScreen() {
           </View>
         )}
 
-        <FlatList
-          data={players}
-          keyExtractor={(item) => item.id.toString()}
-          style={s.list}
-          renderItem={({ item }) => (
-            <View style={s.playerRow}>
-              <View style={[s.jerseyCircle, { backgroundColor: getAvatarColor(item.name) }]}>
-                <Text style={s.jerseyText}>{item.jersey_number}</Text>
+        {players.length === 0 ? (
+          <View style={s.emptyWrap}>
+            <Text style={s.emptyText}>Add players to get started</Text>
+          </View>
+        ) : (
+          players.map((item) => {
+            const isChecked = selectedIds.has(item.id);
+            return (
+              <View key={item.id} style={[s.playerRow, isChecked && s.playerRowSelected]}>
+                <TouchableOpacity
+                  style={s.selectArea}
+                  activeOpacity={0.7}
+                  onPress={() => toggleSelect(item.id)}
+                >
+                  <View style={[s.checkbox, isChecked && s.checkboxChecked]}>
+                    {isChecked && <Text style={s.checkmark}>✓</Text>}
+                  </View>
+                  <View style={[s.jerseyCircle, { backgroundColor: getAvatarColor(item.name) }]}>
+                    <Text style={s.jerseyText}>{item.jersey_number}</Text>
+                  </View>
+                  <Text style={s.playerName}>{item.name}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.removeBtn}
+                  activeOpacity={0.6}
+                  onPress={() => handleRemovePlayer(item)}
+                >
+                  <Text style={s.removeBtnText}>X</Text>
+                </TouchableOpacity>
               </View>
-              <Text style={s.playerName}>{item.name}</Text>
-              <TouchableOpacity
-                style={s.removeBtn}
-                onPress={() => handleRemovePlayer(item)}
-              >
-                <Text style={s.removeBtnText}>X</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={s.emptyWrap}>
-              <Text style={s.emptyText}>Add players to get started</Text>
-            </View>
-          }
-          ListFooterComponent={
-            <AnimatedButton
-              style={[
-                s.startBtn,
-                players.length >= 10 ? s.startReady : s.startDisabled,
-              ]}
-              onPress={handleStartGame}
-              disabled={players.length < 10}
-            >
-              <Text style={s.startBtnText}>
-                {players.length >= 10
-                  ? `Start Game with ${players.length} players`
-                  : `Need ${10 - players.length} more players`}
-              </Text>
-            </AnimatedButton>
-          }
-        />
-      </View>
-    </KeyboardAvoidingView>
+            );
+          })
+        )}
+
+      </ScrollView>
+
+      {players.length >= 10 && (
+        <View style={s.bottomBar}>
+          <Text style={s.bottomBarText}>Selected: {selectedIds.size}/10</Text>
+          <AnimatedButton
+            style={[
+              s.bottomBtn,
+              selectedIds.size === 10 ? s.startReady : s.startDisabled,
+            ]}
+            onPress={handleStartGame}
+            disabled={selectedIds.size !== 10}
+          >
+            <Text style={s.bottomBtnText}>
+              {selectedIds.size === 10 ? "Start Game" : `Need ${10 - selectedIds.size} more`}
+            </Text>
+          </AnimatedButton>
+        </View>
+      )}
+    </View>
   );
 }
 
 const s = StyleSheet.create({
   flex: { flex: 1, backgroundColor: "#0F172A" },
-  container: { flex: 1, paddingHorizontal: 24, paddingTop: 16 },
+  container: { flex: 1 },
+  scrollContent: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 120 },
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -366,38 +399,63 @@ const s = StyleSheet.create({
   addBtnText: { color: "#FFF", fontWeight: "bold", fontSize: 15 },
   modeBadge: { backgroundColor: "#1E3A5F", borderRadius: 8, paddingHorizontal: 8, paddingVertical: 6, marginLeft: 8 },
   modeBadgeText: { color: "#60A5FA", fontSize: 11, fontWeight: "bold" },
-  list: { flex: 1 },
   playerRow: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#1E293B",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 8,
+    borderRadius: 10,
+    paddingRight: 10,
+    marginBottom: 6,
     borderWidth: 1,
     borderColor: "#334155",
   },
-  jerseyCircle: {
+  selectArea: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingLeft: 10,
+    paddingVertical: 12,
+    minHeight: 52,
+  },
+  playerRowSelected: {
+    borderColor: "#3B82F6",
+    backgroundColor: "rgba(59,130,246,0.1)",
+  },
+  checkbox: {
     width: 32,
     height: 32,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "#64748B",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  checkboxChecked: {
+    backgroundColor: "#3B82F6",
+    borderColor: "#3B82F6",
+  },
+  checkmark: { color: "#FFF", fontSize: 15, fontWeight: "bold" },
+  jerseyCircle: {
+    width: 26,
+    height: 26,
     backgroundColor: "#F97316",
-    borderRadius: 16,
+    borderRadius: 13,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
+    marginRight: 8,
   },
-  jerseyText: { color: "#FFF", fontWeight: "bold", fontSize: 13 },
-  playerName: { color: "#FFF", fontSize: 15, flex: 1 },
+  jerseyText: { color: "#FFF", fontWeight: "bold", fontSize: 11 },
+  playerName: { color: "#FFF", fontSize: 14, flex: 1 },
   removeBtn: {
-    width: 28,
-    height: 28,
+    width: 24,
+    height: 24,
     backgroundColor: "#DC2626",
-    borderRadius: 14,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
   },
-  removeBtnText: { color: "#FFF", fontWeight: "bold", fontSize: 12 },
+  removeBtnText: { color: "#FFF", fontWeight: "bold", fontSize: 11 },
   emptyWrap: { alignItems: "center", paddingVertical: 32 },
   emptyText: { color: "#64748B", fontSize: 15 },
   scanRow: {
@@ -429,13 +487,33 @@ const s = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
   },
-  startBtn: { paddingVertical: 16, borderRadius: 16, marginBottom: 24 },
   startReady: { backgroundColor: "#16A34A" },
   startDisabled: { backgroundColor: "#334155" },
-  startBtnText: {
+  bottomBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1E293B",
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 32,
+    borderTopWidth: 1,
+    borderTopColor: "#334155",
+    gap: 12,
+  },
+  bottomBarText: {
+    color: "#FB923C",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  bottomBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  bottomBtnText: {
     color: "#FFF",
     textAlign: "center",
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: "bold",
   },
 });

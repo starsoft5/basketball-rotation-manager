@@ -1,12 +1,15 @@
-import { View, Text, StyleSheet, Platform } from "react-native";
-import Animated, { FadeIn } from "react-native-reanimated";
+import { useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import Animated, { FadeIn, FadeInRight, SlideInLeft, ZoomIn } from "react-native-reanimated";
 
-export default function RotationCard({ rotation, isActive, isCompleted }) {
+export default function RotationCard({ rotation, isActive, isCompleted, onBenchPlayer, highlightedPlayerIds = [] }) {
+  const [selectedId, setSelectedId] = useState(null);
   const borderColor = isActive
     ? "#F97316"
     : isCompleted
       ? "#15803D"
       : "#334155";
+  const canBench = !!onBenchPlayer && !isCompleted;
 
   return (
     <Animated.View
@@ -20,48 +23,98 @@ export default function RotationCard({ rotation, isActive, isCompleted }) {
     >
       <View style={s.headerRow}>
         <View style={s.headerLeft}>
-          <Text style={s.rotTitle}>Rotation {rotation.rotationNumber}</Text>
+          <Text style={s.rotTitle}>Rotation {rotation.rotationNumber || rotation.rotation_number}</Text>
           {isActive && (
-            <View style={[s.statusBadge, { backgroundColor: "#F97316" }]}>
+            <Animated.View entering={ZoomIn.duration(300).springify()} style={[s.statusBadge, { backgroundColor: "#F97316" }]}>
               <Text style={s.statusText}>PLAYING</Text>
-            </View>
+            </Animated.View>
           )}
           {isCompleted && (
-            <View style={[s.statusBadge, { backgroundColor: "#15803D" }]}>
+            <Animated.View entering={ZoomIn.duration(300).springify()} style={[s.statusBadge, { backgroundColor: "#15803D" }]}>
               <Text style={s.statusText}>DONE</Text>
-            </View>
+            </Animated.View>
           )}
         </View>
         <Text style={s.countText}>{rotation.players.length} players</Text>
       </View>
 
       <View style={s.playersWrap}>
-        {rotation.players.map((player) => (
-          <View
-            key={player.id}
-            style={[
-              s.playerChip,
-              isActive
-                ? s.chipActive
-                : isCompleted
-                  ? s.chipDone
-                  : s.chipDefault,
-            ]}
-          >
-            <Text
-              style={[
-                s.chipText,
-                isActive
-                  ? s.chipTextActive
-                  : isCompleted
-                    ? s.chipTextDone
-                    : s.chipTextDefault,
-              ]}
-            >
-              #{player.jersey_number} {player.name}
-            </Text>
-          </View>
-        ))}
+        {rotation.players.map((player, chipIndex) => {
+          const isSelected = canBench && selectedId === player.id;
+          const isHighlighted = highlightedPlayerIds.includes(player.id);
+          const chipStyle = [
+            s.playerChip,
+            isActive
+              ? s.chipActive
+              : isCompleted
+                ? s.chipDone
+                : s.chipDefault,
+            isSelected && s.chipRemove,
+            isHighlighted && s.chipHighlight,
+          ];
+          const textStyle = [
+            s.chipText,
+            isActive
+              ? s.chipTextActive
+              : isCompleted
+                ? s.chipTextDone
+                : s.chipTextDefault,
+            isSelected && s.chipTextRemove,
+            isHighlighted && s.chipTextHighlight,
+          ];
+
+          if (canBench) {
+            if (isSelected) {
+              return (
+                <View key={player.id} style={[chipStyle, s.chipExpanded]}>
+                  <Text style={[s.chipText, s.chipTextRemove, { marginBottom: 6 }]}>
+                    {player.name}
+                  </Text>
+                  <View style={s.chipBtnRow}>
+                    <TouchableOpacity
+                      style={s.chipBtnRemove}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        setSelectedId(null);
+                        onBenchPlayer(player);
+                      }}
+                    >
+                      <Text style={s.chipBtnRemoveText}>Remove</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.chipBtnCancel}
+                      activeOpacity={0.7}
+                      onPress={() => setSelectedId(null)}
+                    >
+                      <Text style={s.chipBtnCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            }
+
+            return (
+              <TouchableOpacity
+                key={player.id}
+                style={chipStyle}
+                activeOpacity={0.7}
+                onPress={() => setSelectedId(player.id)}
+              >
+                <Text style={textStyle}>
+                  #{player.jersey_number} {player.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          }
+
+          return (
+            <Animated.View key={player.id} entering={FadeInRight.delay(chipIndex * 40).duration(300)} style={chipStyle}>
+              <Text style={textStyle}>
+                #{player.jersey_number} {player.name}
+              </Text>
+            </Animated.View>
+          );
+        })}
       </View>
     </Animated.View>
   );
@@ -77,30 +130,12 @@ const s = StyleSheet.create({
   },
   cardShadow: {
     ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
+      android: { elevation: 4 },
     }),
   },
   cardActive: {
     ...Platform.select({
-      ios: {
-        shadowColor: "#F97316",
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-        borderWidth: 2,
-        backgroundColor: "#1E293B",
-      },
+      android: { elevation: 8, borderWidth: 2, backgroundColor: "#1E293B" },
     }),
   },
   headerRow: {
@@ -135,8 +170,33 @@ const s = StyleSheet.create({
     borderColor: "rgba(21,128,61,0.3)",
   },
   chipDefault: { backgroundColor: "#334155", borderColor: "#475569" },
+  chipRemove: { backgroundColor: "rgba(220,38,38,0.25)", borderColor: "#DC2626" },
+  chipHighlight: { backgroundColor: "rgba(59,130,246,0.2)", borderColor: "#3B82F6", borderWidth: 2 },
   chipText: { fontSize: 13, fontWeight: "500" },
   chipTextActive: { color: "#FDBA74" },
   chipTextDone: { color: "#4ADE80" },
   chipTextDefault: { color: "#CBD5E1" },
+  chipTextRemove: { color: "#FCA5A5", fontWeight: "bold" },
+  chipTextHighlight: { color: "#93C5FD", fontWeight: "bold" },
+  chipExpanded: {
+    backgroundColor: "rgba(220,38,38,0.15)",
+    borderColor: "#DC2626",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  chipBtnRow: { flexDirection: "row", gap: 6 },
+  chipBtnRemove: {
+    backgroundColor: "#DC2626",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  chipBtnRemoveText: { color: "#FFF", fontSize: 12, fontWeight: "bold" },
+  chipBtnCancel: {
+    backgroundColor: "#475569",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  chipBtnCancelText: { color: "#CBD5E1", fontSize: 12, fontWeight: "bold" },
 });

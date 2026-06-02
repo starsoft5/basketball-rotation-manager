@@ -87,6 +87,7 @@ async function initializeDatabase(database) {
   await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('transition_minutes', '2')");
   await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('transition_total_seconds', '120')");
   await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('payment_per_player', '280')");
+  await database.runAsync("INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', 'dark')");
 }
 
 export async function createGame(name, totalPlayers) {
@@ -291,6 +292,7 @@ export async function getSettings() {
     distributionMode: settings.distribution_mode || "unequal_games",
     paymentPerPlayer: parseInt(settings.payment_per_player || "280", 10),
     minGamesPerPlayer: parseInt(settings.min_games_per_player || "0", 10),
+    theme: settings.theme || "dark",
   };
 }
 

@@ -16,7 +16,9 @@ import {
   Animated,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import ReAnimated, { FadeInDown, FadeInUp, SlideInLeft, SlideInRight, ZoomIn, FadeIn } from "react-native-reanimated";
 import AnimatedButton from "../../components/AnimatedButton";
+import ConfettiAnimation from "../../components/ConfettiAnimation";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useKeepAwake } from "expo-keep-awake";
 import * as Notifications from "expo-notifications";
@@ -85,7 +87,7 @@ async function cancelRotationAlert() {
 
 export default function GameScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const { id, firstRotation } = useLocalSearchParams();
   const gameId = parseInt(id, 10);
 
   const [gameData, setGameData] = useState(null);
@@ -112,6 +114,8 @@ export default function GameScreen() {
   const [breakModalRotation, setBreakModalRotation] = useState(0);
   const [transitionCountdown, setTransitionCountdown] = useState(0);
   const [transitionExpired, setTransitionExpired] = useState(false);
+  const [highlightedSubs, setHighlightedSubs] = useState([]);
+  const [breakConfirmPlayer, setBreakConfirmPlayer] = useState(null);
   const [showManage, setShowManage] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState("");
   const [linkMode, setLinkMode] = useState(false);
@@ -122,6 +126,7 @@ export default function GameScreen() {
   const [distributionMode, setDistributionMode] = useState("unequal_games");
   const [clockTick, setClockTick] = useState(Date.now());
   const [timerBlink, setTimerBlink] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   useKeepAwake();
 
@@ -267,6 +272,20 @@ export default function GameScreen() {
         ? generateScheduleEqualTime(data.players, maxGameMinutes, transitionMins)
         : generateSchedule(data.players, maxGameMinutes, minsPerGame, transitionMins, minGames);
       await saveSchedule(gameId, newSchedule);
+
+      if (firstRotation) {
+        const selectedIds = firstRotation.split(",").map(Number);
+        const savedData = await getFullGameData(gameId);
+        const rot1 = savedData.rotations[0];
+        if (rot1) {
+          const database = await getDatabase();
+          await database.runAsync("DELETE FROM rotation_players WHERE rotation_id = ?", [rot1.id]);
+          for (const pid of selectedIds) {
+            await addPlayerToRotation(rot1.id, pid);
+          }
+        }
+      }
+
       const fullData = await getFullGameData(gameId);
       setGameData(fullData);
       setSchedule(fullData.rotations);
@@ -299,10 +318,13 @@ export default function GameScreen() {
       await updateGameStatus(gameId, "completed");
       cancelRotationAlert();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      Alert.alert("Game Over!", `All ${sched.length} rotations have been completed.`, [
-        { text: "View Summary", onPress: () => router.push(`/summary/${gameId}`) },
-        { text: "Go Home", onPress: () => router.replace("/") },
-      ]);
+      setShowConfetti(true);
+      setTimeout(() => {
+        Alert.alert("Game Over!", `All ${sched.length} rotations have been completed.`, [
+          { text: "View Summary", onPress: () => router.push(`/summary/${gameId}`) },
+          { text: "Go Home", onPress: () => router.replace("/") },
+        ]);
+      }, 500);
       return;
     }
 
@@ -402,6 +424,7 @@ export default function GameScreen() {
       } else {
         setTransitionCountdown(0);
       }
+      setHighlightedSubs([]);
       setShowBreakModal(true);
     }
   }, [gameId, endBreak]);
@@ -675,10 +698,12 @@ export default function GameScreen() {
     const settings = await getSettings();
     const mode = settings.distributionMode;
 
+    const protectedRotation = Math.max(rot, 1);
+
     const pastCounts = new Map();
     activePlayers.forEach((p) => pastCounts.set(p.id, 0));
     data.rotations
-      .filter((r) => r.rotation_number <= rot)
+      .filter((r) => r.rotation_number <= protectedRotation)
       .forEach((r) => r.players.forEach((p) => {
         pastCounts.set(p.id, (pastCounts.get(p.id) || 0) + 1);
       }));
@@ -697,7 +722,7 @@ export default function GameScreen() {
     groups.forEach((members) => units.push(members));
     solos.forEach((p) => units.push([p]));
 
-    const futureRotations = data.rotations.filter((r) => r.rotation_number > rot);
+    const futureRotations = data.rotations.filter((r) => r.rotation_number > protectedRotation);
 
     if (mode === "equal_time" && activePlayers.length > 0) {
       const maxGameSeconds = settings.equalTimeTotalMinutes * 60;
@@ -705,9 +730,9 @@ export default function GameScreen() {
 
       const transMin = (settings.transitionTotalSeconds || 0) / 60;
       const calc = calcRotationsEqualTime(activePlayers.length, settings.equalTimeTotalMinutes, transMin);
-      const newTotal = Math.max(calc.totalGames, rot);
+      const newTotal = Math.max(calc.totalGames, protectedRotation);
       const newDuration = Math.round(calc.minutesPerRotation * 60);
-      const futureCount = newTotal - rot;
+      const futureCount = newTotal - protectedRotation;
 
       for (const rotation of futureRotations) {
         await database.runAsync("DELETE FROM rotation_players WHERE rotation_id = ?", [rotation.id]);
@@ -715,7 +740,7 @@ export default function GameScreen() {
       }
 
       for (let i = 0; i < futureCount; i++) {
-        const rotNum = rot + 1 + i;
+        const rotNum = protectedRotation + 1 + i;
         const rotId = await createRotation(gameId, rotNum);
         const sorted = [...units].sort((a, b) => {
           const avgA = a.reduce((s, p) => s + (pastCounts.get(p.id) || 0), 0) / a.length;
@@ -775,6 +800,104 @@ export default function GameScreen() {
     setGameData(fullData);
     setSchedule(fullData.rotations);
   };
+
+  const handleBreakRemovePlayer = useCallback(async (player) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+
+    const rot = currentRotationRef.current;
+    const sched = scheduleRef.current;
+    const currentRot = sched[rot - 1];
+    if (!currentRot) return;
+
+    const activePlayers = await getActivePlayers(gameId);
+    const inRotation = new Set(currentRot.players.map((p) => p.id));
+    const candidates = activePlayers.filter(
+      (p) => !inRotation.has(p.id) && p.id !== player.id && p.friend_group == null
+    );
+
+    if (candidates.length === 0) {
+      setBreakConfirmPlayer(null);
+      Alert.alert("Cannot Remove", "No available substitute player.");
+      return;
+    }
+
+    candidates.sort((a, b) => (a.times_played || 0) - (b.times_played || 0));
+    const substitute = candidates[0];
+
+    await removePlayerFromRotation(currentRot.id, player.id);
+    await addPlayerToRotation(currentRot.id, substitute.id);
+    await updatePlayerStatus(player.id, "benched");
+
+    setBreakModalPlayers((prev) => {
+      const idx = prev.findIndex((p) => p.id === player.id);
+      if (idx === -1) return prev;
+      const updated = [...prev];
+      updated[idx] = substitute;
+      return updated;
+    });
+
+    setHighlightedSubs((prev) => [...prev, { rotationId: currentRot.id, playerId: substitute.id }]);
+    setBreakConfirmPlayer(null);
+
+    const midData = await getFullGameData(gameId);
+    setGameData(midData);
+    await regenerateFutureRotations();
+
+    Alert.alert("Substituted", `${player.name} removed.\n${substitute.name} substituted in.`);
+  }, [gameId]);
+
+  const handleBenchAndSubstitute = useCallback(async (player, rotation) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+
+    const rot = currentRotationRef.current;
+    const rotNum = rotation.rotation_number || rotation.rotationNumber;
+    const originalPlayerIds = new Set(rotation.players.map((p) => p.id));
+    let substituteName = null;
+    let substituteId = null;
+
+    const activePlayers = await getActivePlayers(gameId);
+    const inRotation = new Set(rotation.players.map((p) => p.id));
+    const candidates = activePlayers.filter(
+      (p) => !inRotation.has(p.id) && p.id !== player.id && p.friend_group == null
+    );
+
+    if (rotNum === rot && gameStatus === "in_progress") {
+      await removePlayerFromRotation(rotation.id, player.id);
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => (a.times_played || 0) - (b.times_played || 0));
+        await addPlayerToRotation(rotation.id, candidates[0].id);
+        substituteName = candidates[0].name;
+        substituteId = candidates[0].id;
+        setHighlightedSubs((prev) => [...prev, { rotationId: rotation.id, playerId: candidates[0].id }]);
+      }
+    }
+
+    await updatePlayerStatus(player.id, "benched");
+    const freshData = await getFullGameData(gameId);
+    setGameData(freshData);
+    await regenerateFutureRotations();
+
+    if (!substituteId) {
+      const updatedData = await getFullGameData(gameId);
+      const updatedRotation = updatedData.rotations.find(
+        (r) => (r.rotation_number || r.rotationNumber) === rotNum
+      );
+      if (updatedRotation) {
+        const newPlayer = updatedRotation.players.find((p) => !originalPlayerIds.has(p.id));
+        if (newPlayer) {
+          substituteId = newPlayer.id;
+          substituteName = newPlayer.name;
+          setHighlightedSubs((prev) => [...prev, { rotationId: updatedRotation.id, playerId: newPlayer.id }]);
+        }
+      }
+    }
+
+    if (substituteName) {
+      Alert.alert("Substituted", `${player.name} removed.\n${substituteName} substituted in.`);
+    } else {
+      Alert.alert("Not Playing", `${player.name} removed from rotations.`);
+    }
+  }, [gameId, gameStatus]);
 
   const handleAddLatePlayer = async () => {
     const name = newPlayerName.trim();
@@ -1106,27 +1229,27 @@ export default function GameScreen() {
         </View>
 
         {isOnBreak && (
-          <View style={s.breakBanner}>
+          <ReAnimated.View entering={FadeInDown.duration(300)} style={s.breakBanner}>
             <Text style={s.breakBannerText}>BREAK — {formatTime(breakTime)}</Text>
             <TouchableOpacity onPress={openEndTimePicker} activeOpacity={0.7}>
               <Text style={s.breakEditEnd}>Edit End Time</Text>
             </TouchableOpacity>
-          </View>
+          </ReAnimated.View>
         )}
 
         {!isOnBreak && endTimeWarning && !endTimeReached && gameStatus === "in_progress" && (
-          <View style={s.warningBanner}>
+          <ReAnimated.View entering={FadeInDown.duration(300)} style={s.warningBanner}>
             <Text style={s.warningBannerText}>Less than 5 minutes until end time</Text>
-          </View>
+          </ReAnimated.View>
         )}
 
         {endTimeReached && gameStatus === "in_progress" && (
-          <View style={s.overtimeBanner}>
+          <ReAnimated.View entering={FadeInDown.duration(300)} style={s.overtimeBanner}>
             <Text style={s.overtimeBannerText}>OVERTIME — Past end time</Text>
             <TouchableOpacity onPress={openEndTimePicker} activeOpacity={0.7}>
               <Text style={s.breakEditEnd}>Extend</Text>
             </TouchableOpacity>
-          </View>
+          </ReAnimated.View>
         )}
       </View>
 
@@ -1188,7 +1311,7 @@ export default function GameScreen() {
             </View>
 
             <ScrollView style={s.playerList}>
-              {gameData?.players.map((player) => {
+              {gameData?.players.map((player, pIdx) => {
                 const inCurrent = schedule[currentRotation - 1]?.players.some(
                   (p) => p.id === player.id
                 );
@@ -1199,8 +1322,8 @@ export default function GameScreen() {
                 const groupLabel = player.friend_group != null ? `G${player.friend_group}` : null;
 
                 return (
+                  <ReAnimated.View key={player.id} entering={FadeInDown.delay(pIdx * 40).duration(250)}>
                   <TouchableOpacity
-                    key={player.id}
                     style={[s.pRow, isSelected && s.pRowSelected, groupLabel && s.pRowLinked]}
                     onPress={linkMode ? () => {
                       setSelectedForLink((prev) =>
@@ -1273,6 +1396,7 @@ export default function GameScreen() {
                       </View>
                     )}
                   </TouchableOpacity>
+                  </ReAnimated.View>
                 );
               })}
             </ScrollView>
@@ -1343,16 +1467,47 @@ export default function GameScreen() {
               </Text>
             )}
             <View style={s.breakPlayerList}>
-              {breakModalPlayers.map((p, i) => (
-                <View key={p.id} style={s.breakPlayerRow}>
-                  <Text style={s.breakPlayerNum}>{i + 1}.</Text>
-                  <Text style={s.breakPlayerName}>{p.name}</Text>
-                  {p.jersey_number != null && (
-                    <Text style={s.breakPlayerJersey}>#{p.jersey_number}</Text>
-                  )}
-                </View>
-              ))}
+              {breakModalPlayers.map((p, i) => {
+                const isSubHighlighted = highlightedSubs.some((h) => h.playerId === p.id);
+                return (
+                  <ReAnimated.View key={p.id} entering={SlideInLeft.delay(i * 60).duration(300).springify()}>
+                    <TouchableOpacity
+                      style={[s.breakPlayerRow, isSubHighlighted && s.breakPlayerRowHighlight]}
+                      activeOpacity={0.7}
+                      onPress={() => setBreakConfirmPlayer(p)}
+                    >
+                      <Text style={s.breakPlayerNum}>{i + 1}.</Text>
+                      <Text style={[s.breakPlayerName, isSubHighlighted && { color: "#93C5FD" }]}>{p.name}</Text>
+                      {p.jersey_number != null && (
+                        <Text style={s.breakPlayerJersey}>#{p.jersey_number}</Text>
+                      )}
+                    </TouchableOpacity>
+                  </ReAnimated.View>
+                );
+              })}
             </View>
+
+            <Modal visible={!!breakConfirmPlayer} animationType="fade" transparent>
+              <View style={s.etOverlay}>
+                <View style={s.confirmBox}>
+                  <Text style={s.confirmName}>{breakConfirmPlayer?.name}</Text>
+                  <View style={s.confirmBtnRow}>
+                    <TouchableOpacity
+                      style={s.confirmBtnRemove}
+                      onPress={() => handleBreakRemovePlayer(breakConfirmPlayer)}
+                    >
+                      <Text style={s.confirmBtnText}>Remove</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.confirmBtnCancel}
+                      onPress={() => setBreakConfirmPlayer(null)}
+                    >
+                      <Text style={s.confirmBtnText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </Modal>
             <AnimatedButton
               style={{
                 backgroundColor: "#16A34A",
@@ -1457,19 +1612,25 @@ export default function GameScreen() {
         keyExtractor={(item) => item.id.toString()}
         style={s.list}
         contentContainerStyle={s.listContent}
-        renderItem={({ item, index }) => (
-          <RotationCard
-            rotation={item}
-            isActive={gameStatus === "in_progress" && index === currentRotation - 1}
-            isCompleted={gameStatus === "completed" || index < currentRotation - 1}
-          />
-        )}
+        renderItem={({ item, index }) => {
+          const completed = gameStatus === "completed" || index < currentRotation - 1;
+          return (
+            <RotationCard
+              rotation={item}
+              isActive={gameStatus === "in_progress" && index === currentRotation - 1}
+              isCompleted={completed}
+              onBenchPlayer={!completed && !(gameStatus === "in_progress" && index === currentRotation - 1) ? (player) => handleBenchAndSubstitute(player, item) : undefined}
+              highlightedPlayerIds={highlightedSubs.filter((h) => h.rotationId === item.id).map((h) => h.playerId)}
+            />
+          );
+        }}
         onScrollToIndexFailed={(info) => {
           setTimeout(() => {
             flatListRef.current?.scrollToIndex({ index: info.index, animated: true });
           }, 500);
         }}
       />
+      <ConfettiAnimation visible={showConfetti} onComplete={() => setShowConfetti(false)} />
     </View>
   );
 }
@@ -1679,9 +1840,37 @@ const s = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 6,
     paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#334155",
   },
+  breakPlayerRowHighlight: {
+    borderBottomWidth: 2,
+    borderBottomColor: "#3B82F6",
+  },
+  confirmBox: {
+    backgroundColor: "#1E293B",
+    borderRadius: 16,
+    padding: 24,
+    width: "80%",
+    borderWidth: 1,
+    borderColor: "#475569",
+    alignItems: "center",
+  },
+  confirmName: { color: "#FFF", fontSize: 20, fontWeight: "bold", marginBottom: 20, textAlign: "center" },
+  confirmBtnRow: { flexDirection: "row", gap: 12, width: "100%" },
+  confirmBtnRemove: {
+    flex: 1,
+    backgroundColor: "#DC2626",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  confirmBtnCancel: {
+    flex: 1,
+    backgroundColor: "#475569",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  confirmBtnText: { color: "#FFF", fontSize: 16, fontWeight: "bold" },
   breakPlayerNum: { color: "#94A3B8", fontSize: 16, width: 30 },
   breakPlayerName: { color: "#FFF", fontSize: 16, fontWeight: "600", flex: 1 },
   breakPlayerJersey: { color: "#F59E0B", fontSize: 14, fontWeight: "bold" },
