@@ -28,6 +28,7 @@ import {
   updateGameRotation,
   updateRotationStatus,
   updatePlayerStats,
+  incrementPlayerStats,
   updatePlayerStatus,
   getActivePlayers,
   saveSchedule,
@@ -143,6 +144,7 @@ export default function GameScreen() {
   const breakTimerRef = useRef(null);
   const breakTimeRef = useRef(0);
   const breakStartRef = useRef(null);
+  const breakAccumulatedRef = useRef(0);
   const endTimeAlertShownRef = useRef(false);
   const startTimerRef = useRef(null);
   const transitionTimerRef = useRef(null);
@@ -268,23 +270,11 @@ export default function GameScreen() {
       setCurrentRotation(data.game.current_rotation);
       setGameStatus(data.game.status);
     } else {
+      const firstRotationIds = firstRotation ? firstRotation.split(",").map(Number) : null;
       const newSchedule = mode === "equal_time"
-        ? generateScheduleEqualTime(data.players, maxGameMinutes, transitionMins)
-        : generateSchedule(data.players, maxGameMinutes, minsPerGame, transitionMins, minGames);
+        ? generateScheduleEqualTime(data.players, maxGameMinutes, transitionMins, firstRotationIds)
+        : generateSchedule(data.players, maxGameMinutes, minsPerGame, transitionMins, minGames, firstRotationIds);
       await saveSchedule(gameId, newSchedule);
-
-      if (firstRotation) {
-        const selectedIds = firstRotation.split(",").map(Number);
-        const savedData = await getFullGameData(gameId);
-        const rot1 = savedData.rotations[0];
-        if (rot1) {
-          const database = await getDatabase();
-          await database.runAsync("DELETE FROM rotation_players WHERE rotation_id = ?", [rot1.id]);
-          for (const pid of selectedIds) {
-            await addPlayerToRotation(rot1.id, pid);
-          }
-        }
-      }
 
       const fullData = await getFullGameData(gameId);
       setGameData(fullData);
@@ -295,22 +285,18 @@ export default function GameScreen() {
   const handleRotationEnd = useCallback(async () => {
     const rot = currentRotationRef.current;
     const sched = scheduleRef.current;
-    const gData = gameDataRef.current;
     const currentIdx = rot - 1;
 
     if (currentIdx >= 0 && currentIdx < sched.length) {
       await updateRotationStatus(sched[currentIdx].id, "completed");
       const rotPlayers = sched[currentIdx].players;
       for (const player of rotPlayers) {
-        const existing = gData?.players.find((p) => p.id === player.id);
-        if (existing) {
-          await updatePlayerStats(
-            player.id,
-            Math.round((existing.total_play_time || 0) + minutesPerGameRef.current),
-            (existing.times_played || 0) + 1
-          );
-        }
+        await incrementPlayerStats(player.id, Math.round(minutesPerGameRef.current));
       }
+
+      const freshData = await getFullGameData(gameId);
+      setGameData(freshData);
+      setSchedule(freshData.rotations);
     }
 
     if (rot >= sched.length) {
@@ -395,8 +381,9 @@ export default function GameScreen() {
       timerEndTimeRef.current = null;
       setIsRunning(false);
       setIsOnBreak(true);
+      breakAccumulatedRef.current = breakTimeRef.current;
       breakStartRef.current = Date.now();
-      const accumulatedAtStart = breakTimeRef.current;
+      const accumulatedAtStart = breakAccumulatedRef.current;
       breakTimerRef.current = setInterval(() => {
         const elapsed = Math.floor((Date.now() - breakStartRef.current) / 1000);
         setBreakTime(accumulatedAtStart + elapsed);
@@ -544,8 +531,9 @@ export default function GameScreen() {
   const startBreak = useCallback(() => {
     pauseTimer();
     setIsOnBreak(true);
+    breakAccumulatedRef.current = breakTimeRef.current;
     breakStartRef.current = Date.now();
-    const accumulatedAtStart = breakTimeRef.current;
+    const accumulatedAtStart = breakAccumulatedRef.current;
     breakTimerRef.current = setInterval(() => {
       const elapsed = Math.floor((Date.now() - breakStartRef.current) / 1000);
       setBreakTime(accumulatedAtStart + elapsed);
@@ -559,7 +547,7 @@ export default function GameScreen() {
     }
     if (breakStartRef.current) {
       const elapsed = Math.floor((Date.now() - breakStartRef.current) / 1000);
-      const newBreakTotal = breakTimeRef.current + elapsed;
+      const newBreakTotal = breakAccumulatedRef.current + elapsed;
       setBreakTime(newBreakTotal);
       breakTimeRef.current = newBreakTotal;
       breakStartRef.current = null;
@@ -979,7 +967,7 @@ export default function GameScreen() {
             }
             if (breakStartRef.current) {
               const elapsed = Math.floor((Date.now() - breakStartRef.current) / 1000);
-              const newBreakTotal = breakTimeRef.current + elapsed;
+              const newBreakTotal = breakAccumulatedRef.current + elapsed;
               setBreakTime(newBreakTotal);
               breakTimeRef.current = newBreakTotal;
               breakStartRef.current = null;
@@ -996,21 +984,13 @@ export default function GameScreen() {
 
             const rot = currentRotationRef.current;
             const sched = scheduleRef.current;
-            const gData = gameDataRef.current;
             const currentIdx = rot - 1;
 
             if (currentIdx >= 0 && currentIdx < sched.length) {
               await updateRotationStatus(sched[currentIdx].id, "completed");
               const rotPlayers = sched[currentIdx].players;
               for (const player of rotPlayers) {
-                const existing = gData?.players.find((p) => p.id === player.id);
-                if (existing) {
-                  await updatePlayerStats(
-                    player.id,
-                    Math.round((existing.total_play_time || 0) + minutesPerGameRef.current),
-                    (existing.times_played || 0) + 1
-                  );
-                }
+                await incrementPlayerStats(player.id, Math.round(minutesPerGameRef.current));
               }
             }
 

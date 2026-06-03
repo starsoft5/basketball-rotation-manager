@@ -221,7 +221,12 @@
       "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = \"0\"; npx eas build:list --platform android --limit 1 --json 2>&1)",
       "WebFetch(domain:storage.googleapis.com)",
       "PowerShell(npx expo prebuild --platform android 2>&1)",
-      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = \"0\"; Set-Location C:\\\\claudeapps\\\\basketball-rotation; npx expo install react-native-gesture-handler 2>&1)"
+      "PowerShell($env:NODE_TLS_REJECT_UNAUTHORIZED = \"0\"; Set-Location C:\\\\claudeapps\\\\basketball-rotation; npx expo install react-native-gesture-handler 2>&1)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\claudeapps\\\\basketball-rotation\" -Force | Select-Object Name, @{Name=\"Type\"; Expression={if\\($_.PSIsContainer\\){\"Dir\"}else{\"File\"}}})",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\claudeapps\\\\basketball-rotation\" -Recurse -Depth 2 | Where-Object { $_.PSIsContainer } | Select-Object -First 20 FullName)",
+      "PowerShell($env:JAVA_HOME = \"C:\\\\Program Files\\\\Microsoft\\\\jdk-17.0.19.10-hotspot\"; cd C:\\\\claudeapps\\\\basketball-rotation\\\\android; .\\\\gradlew.bat assembleRelease 2>&1 | Select-Object -Last 20)",
+      "PowerShell(where.exe node 2>&1; $env:PATH -split ';' | Where-Object { $_ -match 'node|nvm' })",
+      "PowerShell(Get-ChildItem \"F:\\\\nvm\" -ErrorAction SilentlyContinue | Select-Object Name; Get-ChildItem \"F:\\\\nodejs\" -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq \"node.exe\" }; Get-ChildItem \"F:\\\\nodejs_v22\" -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq \"node.exe\" }; Get-ChildItem \"F:\\\\nvmnodejs\" -ErrorAction SilentlyContinue | Where-Object { $_.Name -eq \"node.exe\" })"
     ]
   }
 }

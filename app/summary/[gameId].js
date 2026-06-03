@@ -49,13 +49,26 @@ export default function SummaryScreen() {
 
   const completedRotations = rotations.filter((r) => r.status === "completed").length;
   const activePlayers = players.filter((p) => p.status !== "benched");
-  const maxPlayerTime = Math.max(...players.map((p) => p.total_play_time || 0), 0);
-  const totalPlayMinutes = maxPlayerTime;
-  const breakMinutes = Math.round((game.break_time_seconds || 0) / 60);
+
+  const maxTimesPlayed = Math.max(...activePlayers.map((p) => p.times_played || 0), 1);
+  const maxTotalTime = Math.max(...activePlayers.map((p) => p.total_play_time || 0), 0);
+  const minutesPerRotation = maxTimesPlayed > 0 ? Math.round(maxTotalTime / maxTimesPlayed) : 0;
+  const totalPlayMinutes = completedRotations * minutesPerRotation;
+
+  const completedRots = rotations
+    .filter((r) => r.started_at && r.ended_at)
+    .sort((a, b) => a.rotation_number - b.rotation_number);
+  let totalBreakSeconds = 0;
+  for (let i = 1; i < completedRots.length; i++) {
+    const prevEnd = new Date(completedRots[i - 1].ended_at.replace(" ", "T")).getTime();
+    const start = new Date(completedRots[i].started_at.replace(" ", "T")).getTime();
+    totalBreakSeconds += Math.max(0, (start - prevEnd) / 1000);
+  }
+  const breakMinutes = Math.round(totalBreakSeconds / 60);
 
   const activePlayTimes = activePlayers.map((p) => p.total_play_time || 0);
-  const maxPlayTime = Math.max(...activePlayTimes, 0);
-  const minPlayTime = Math.min(...activePlayTimes, 0);
+  const maxPlayTime = activePlayTimes.length > 0 ? Math.max(...activePlayTimes) : 0;
+  const minPlayTime = activePlayTimes.length > 0 ? Math.min(...activePlayTimes) : 0;
   const spread = maxPlayTime - minPlayTime;
 
   const formatDuration = (minutes) => {

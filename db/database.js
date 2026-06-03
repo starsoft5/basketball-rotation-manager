@@ -177,6 +177,14 @@ export async function updatePlayerStats(playerId, totalPlayTime, timesPlayed) {
   );
 }
 
+export async function incrementPlayerStats(playerId, playTimeToAdd) {
+  const database = await getDatabase();
+  await database.runAsync(
+    "UPDATE players SET total_play_time = total_play_time + ?, times_played = times_played + 1 WHERE id = ?",
+    [playTimeToAdd, playerId]
+  );
+}
+
 export async function createRotation(gameId, rotationNumber) {
   const database = await getDatabase();
   const result = await database.runAsync(

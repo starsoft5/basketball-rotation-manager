@@ -120,8 +120,8 @@ export function calcRotationsEqualTime(playerCount, maxGameMinutes = 120, transi
   };
 }
 
-export function generateSchedule(players, maxGameMinutes = 120, minutesPerGame = 10, transitionMinutes = 0, minGamesPerPlayer = 0) {
-  const { totalGames, minPlays } = calcRotations(players.length, maxGameMinutes, minutesPerGame, transitionMinutes, minGamesPerPlayer);
+export function generateSchedule(players, maxGameMinutes = 120, minutesPerGame = 10, transitionMinutes = 0, minGamesPerPlayer = 0, firstRotationIds = null) {
+  const { totalGames } = calcRotations(players.length, maxGameMinutes, minutesPerGame, transitionMinutes, minGamesPerPlayer);
   const rotations = [];
   const playCounts = new Map();
   players.forEach((p) => playCounts.set(p.id, 0));
@@ -145,25 +145,16 @@ export function generateSchedule(players, maxGameMinutes = 120, minutesPerGame =
     rotations.push({ rotationNumber: r + 1, players: [] });
   }
 
-  const targetMin = Math.max(minPlays, 1);
-
-  for (let round = 0; round < targetMin; round++) {
-    const shuffled = [...units].sort(() => Math.random() - 0.5);
-    for (const unit of shuffled) {
-      const available = rotations
-        .filter((r) => r.players.length + unit.length <= PLAYERS_PER_GAME)
-        .filter((r) => !r.players.some((p) => unit.some((u) => u.id === p.id)))
-        .sort((a, b) => a.players.length - b.players.length);
-      const target = available[0];
-      if (!target) continue;
-      target.players.push(...unit);
-      unit.forEach((p) => playCounts.set(p.id, playCounts.get(p.id) + 1));
-    }
+  if (firstRotationIds && rotations.length > 0) {
+    const firstIdSet = new Set(firstRotationIds);
+    const selected = players.filter((p) => firstIdSet.has(p.id));
+    rotations[0].players = selected;
+    selected.forEach((p) => playCounts.set(p.id, 1));
   }
 
   for (const rotation of rotations) {
     if (rotation.players.length >= PLAYERS_PER_GAME) continue;
-    const sorted = [...units]
+    const candidates = [...units]
       .filter((unit) => !rotation.players.some((p) => unit.some((u) => u.id === p.id)))
       .sort((a, b) => {
         const avgA = a.reduce((s, p) => s + playCounts.get(p.id), 0) / a.length;
@@ -171,7 +162,7 @@ export function generateSchedule(players, maxGameMinutes = 120, minutesPerGame =
         if (avgA !== avgB) return avgA - avgB;
         return Math.random() - 0.5;
       });
-    for (const unit of sorted) {
+    for (const unit of candidates) {
       if (rotation.players.length + unit.length <= PLAYERS_PER_GAME) {
         rotation.players.push(...unit);
         unit.forEach((p) => playCounts.set(p.id, playCounts.get(p.id) + 1));
@@ -180,31 +171,12 @@ export function generateSchedule(players, maxGameMinutes = 120, minutesPerGame =
     }
   }
 
-  for (const player of players) {
-    while (playCounts.get(player.id) < targetMin) {
-      let didSwap = false;
-      for (const rotation of rotations) {
-        if (playCounts.get(player.id) >= targetMin) break;
-        if (rotation.players.some((p) => p.id === player.id)) continue;
-        const victim = rotation.players
-          .filter((p) => playCounts.get(p.id) > targetMin)
-          .sort((a, b) => playCounts.get(b.id) - playCounts.get(a.id))[0];
-        if (!victim) continue;
-        rotation.players = rotation.players.map((p) => p.id === victim.id ? player : p);
-        playCounts.set(victim.id, playCounts.get(victim.id) - 1);
-        playCounts.set(player.id, playCounts.get(player.id) + 1);
-        didSwap = true;
-      }
-      if (!didSwap) break;
-    }
-  }
-
   return rotations;
 }
 
-export function generateScheduleEqualTime(players, maxGameMinutes = 120, transitionMinutes = 0) {
+export function generateScheduleEqualTime(players, maxGameMinutes = 120, transitionMinutes = 0, firstRotationIds = null) {
   const info = calcRotationsEqualTime(players.length, maxGameMinutes, transitionMinutes);
-  const { totalGames, playsPerPlayer } = info;
+  const { totalGames } = info;
 
   const rotations = [];
   for (let r = 0; r < totalGames; r++) {
@@ -228,10 +200,17 @@ export function generateScheduleEqualTime(players, maxGameMinutes = 120, transit
   groups.forEach((members) => units.push(members));
   solos.forEach((p) => units.push([p]));
 
+  if (firstRotationIds && rotations.length > 0) {
+    const firstIdSet = new Set(firstRotationIds);
+    const selected = players.filter((p) => firstIdSet.has(p.id));
+    rotations[0].players = selected;
+    selected.forEach((p) => playCounts.set(p.id, 1));
+  }
+
   for (const rotation of rotations) {
+    if (rotation.players.length >= PLAYERS_PER_GAME) continue;
     const candidates = [...units]
       .filter((unit) => !rotation.players.some((p) => unit.some((u) => u.id === p.id)))
-      .filter((unit) => unit.every((p) => playCounts.get(p.id) < playsPerPlayer))
       .sort((a, b) => {
         const avgA = a.reduce((s, p) => s + playCounts.get(p.id), 0) / a.length;
         const avgB = b.reduce((s, p) => s + playCounts.get(p.id), 0) / b.length;
@@ -245,25 +224,6 @@ export function generateScheduleEqualTime(players, maxGameMinutes = 120, transit
         unit.forEach((p) => playCounts.set(p.id, playCounts.get(p.id) + 1));
       }
       if (rotation.players.length >= PLAYERS_PER_GAME) break;
-    }
-  }
-
-  for (const player of players) {
-    while (playCounts.get(player.id) < playsPerPlayer) {
-      let didSwap = false;
-      for (const rotation of rotations) {
-        if (playCounts.get(player.id) >= playsPerPlayer) break;
-        if (rotation.players.some((p) => p.id === player.id)) continue;
-        const victim = rotation.players
-          .filter((p) => playCounts.get(p.id) > playsPerPlayer)
-          .sort((a, b) => playCounts.get(b.id) - playCounts.get(a.id))[0];
-        if (!victim) continue;
-        rotation.players = rotation.players.map((p) => p.id === victim.id ? player : p);
-        playCounts.set(victim.id, playCounts.get(victim.id) - 1);
-        playCounts.set(player.id, playCounts.get(player.id) + 1);
-        didSwap = true;
-      }
-      if (!didSwap) break;
     }
   }
 
