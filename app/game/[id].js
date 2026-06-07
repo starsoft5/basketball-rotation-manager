@@ -663,7 +663,7 @@ export default function GameScreen() {
       const settings = await getSettings();
       const transitionSecs = settings.transitionTotalSeconds || 0;
       const playTimeMs = schedule.length * rotationDurationRef.current * 1000;
-      const transitionMs = Math.max(schedule.length - 1, 0) * transitionSecs * 1000;
+      const transitionMs = schedule.length * transitionSecs * 1000 - transitionSecs * 1000;
       const endTime = Date.now() + playTimeMs + transitionMs;
       setGameEndTime(endTime);
       gameEndTimeRef.current = endTime;
@@ -1057,14 +1057,23 @@ export default function GameScreen() {
 
   const elapsed = (currentRotation - 1) * rotationDuration + (rotationDuration - timeRemaining);
   const totalGameTime = formatTime(Math.max(elapsed, 0));
+  const formatEndTime = (ms) => {
+    const d = new Date(ms);
+    let h = d.getHours();
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12 || 12;
+    const m = String(d.getMinutes()).padStart(2, "0");
+    const sec = String(d.getSeconds()).padStart(2, "0");
+    return `${h}:${m}:${sec} ${ampm}`;
+  };
   const endTimeDisplay = (() => {
     if (gameEndTime > 0) {
-      return new Date(gameEndTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      return formatEndTime(gameEndTime);
     }
     const playMs = schedule.length * rotationDuration * 1000;
-    const transMs = Math.max(schedule.length - 1, 0) * transitionSecondsRef.current * 1000;
+    const transMs = schedule.length * transitionSecondsRef.current * 1000 - transitionSecondsRef.current * 1000;
     const now = clockTick || Date.now();
-    return new Date(now + playMs + transMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return formatEndTime(now + playMs + transMs);
   })();
   const progress =
     gameStatus === "in_progress"

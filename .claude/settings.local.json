@@ -230,7 +230,8 @@
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('scripts',{}\\)\\)\")",
       "PowerShell(git filter-branch *)",
       "PowerShell(git stash *)",
-      "PowerShell(git *)"
+      "PowerShell(git *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\claudeapps\\\\basketball-rotation\" -Exclude node_modules -Recurse -Filter \"*.tsx\" -o \"*.ts\" -o \"*.js\")"
     ]
   }
 }

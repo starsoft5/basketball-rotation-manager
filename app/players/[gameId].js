@@ -41,7 +41,7 @@ function getAvatarColor(name) {
 }
 import { calcRotations, calcRotationsEqualTime, formatTime } from "../../utils/scheduler";
 import * as ImagePicker from "expo-image-picker";
-import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import TextRecognition from "@react-native-ml-kit/text-recognition";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -172,33 +172,9 @@ export default function PlayerEntryScreen() {
   };
 
   const ocrFromUri = async (uri) => {
-    const resized = await manipulateAsync(uri, [{ resize: { width: 1500 } }], {
-      compress: 0.85,
-      format: SaveFormat.JPEG,
-      base64: true,
-    });
+    const result = await TextRecognition.recognize(uri);
 
-    const formData = new FormData();
-    formData.append("base64Image", `data:image/jpeg;base64,${resized.base64}`);
-    formData.append("language", "eng");
-    formData.append("isOverlayRequired", "false");
-    formData.append("scale", "true");
-    formData.append("OCREngine", "2");
-
-    const response = await fetch("https://api.ocr.space/parse/image", {
-      method: "POST",
-      headers: { apikey: "K85403655788957" },
-      body: formData,
-    });
-
-    const data = await response.json();
-
-    if (data.IsErroredOnProcessing) {
-      throw new Error(data.ErrorMessage?.[0] || "OCR processing error");
-    }
-    if (!data.ParsedResults || !data.ParsedResults[0]) return [];
-
-    return data.ParsedResults[0].ParsedText
+    return result.text
       .split(/[\n\r]+/)
       .map((line) => line
         .replace(/^\d+[\.\)\-\s]*/, "")
@@ -232,7 +208,7 @@ export default function PlayerEntryScreen() {
       }
       await loadPlayers();
     } catch (err) {
-      Alert.alert("Scan Failed", "Check your internet connection and try again.");
+      Alert.alert("Scan Failed", "Could not read the image. Please try again.");
     } finally {
       setScanning(false);
     }
@@ -261,7 +237,7 @@ export default function PlayerEntryScreen() {
       }
       await loadPlayers();
     } catch (err) {
-      Alert.alert("Scan Failed", "Check your internet connection and try again.");
+      Alert.alert("Scan Failed", "Could not read the image. Please try again.");
     } finally {
       setScanning(false);
     }
