@@ -44,6 +44,9 @@ yarn-error.*
 *.apk
 *.aab
 
+# Zip archives
+*.zip
+
 # Google Play Store service account key
 play-store-key.json
 
