@@ -71,14 +71,14 @@ export default function SetupScreen() {
   const handleSaveSettings = async () => {
     const h = parseFloat(editHours);
     const eqH = parseFloat(editEqualTimeHours);
-    const m = parseInt(editMinutes, 10);
+    const m = parseFloat(editMinutes);
     if (isNaN(h) || h < 0 || h > 10) {
       Alert.alert("Invalid", "Hours must be between 0 and 10.");
       return;
     }
     const gameTotal = Math.round(h * 60);
-    if (gameTotal < 15) {
-      Alert.alert("Invalid", "Total time must be at least 15 minutes.");
+    if (gameTotal < 1) {
+      Alert.alert("Invalid", "Total time must be at least 1 minute.");
       return;
     }
     if (isNaN(eqH) || eqH < 0 || eqH > 10) {
@@ -86,12 +86,12 @@ export default function SetupScreen() {
       return;
     }
     const eqTotal = Math.round(eqH * 60);
-    if (eqTotal < 15) {
-      Alert.alert("Invalid", "Equal Playing Time total must be at least 15 minutes.");
+    if (eqTotal < 1) {
+      Alert.alert("Invalid", "Equal Playing Time total must be at least 1 minute.");
       return;
     }
-    if (isNaN(m) || m < 1 || m > 60) {
-      Alert.alert("Invalid", "Minutes per game must be between 1 and 60.");
+    if (isNaN(m) || m < 0.01 || m > 60) {
+      Alert.alert("Invalid", "Minutes per game must be between 0.01 and 60.");
       return;
     }
     if (m > gameTotal) {
@@ -277,8 +277,8 @@ export default function SetupScreen() {
                     style={s.settingsInput}
                     value={editMinutes}
                     onChangeText={setEditMinutes}
-                    keyboardType="number-pad"
-                    maxLength={2}
+                    keyboardType="decimal-pad"
+                    maxLength={5}
                     placeholderTextColor="#64748B"
                   />
                 </View>

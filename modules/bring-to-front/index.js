@@ -1,12 +1,18 @@
-import { requireNativeModule } from "expo-modules-core";
+import { Platform } from "react-native";
 
-const BringToFront = requireNativeModule("BringToFront");
+let BringToFront = null;
+if (Platform.OS !== "web") {
+  const { requireNativeModule } = require("expo-modules-core");
+  BringToFront = requireNativeModule("BringToFront");
+}
 
-export async function bringToFront() { return BringToFront.bringToFront(); }
-export async function canOverlay() { return BringToFront.canOverlay(); }
-export async function openOverlaySettings() { return BringToFront.openOverlaySettings(); }
-export async function scheduleAlarm(seconds) { return BringToFront.scheduleAlarm(seconds); }
-export async function cancelAlarm() { return BringToFront.cancelAlarm(); }
-export async function beep(durationMs) { return BringToFront.beep(durationMs); }
-export async function beepFinal() { return BringToFront.beepFinal(); }
-export async function speak(text) { return BringToFront.speak(text); }
+const noop = async () => {};
+
+export const bringToFront = BringToFront ? () => BringToFront.bringToFront() : noop;
+export const canOverlay = BringToFront ? () => BringToFront.canOverlay() : async () => false;
+export const openOverlaySettings = BringToFront ? () => BringToFront.openOverlaySettings() : noop;
+export const scheduleAlarm = BringToFront ? (seconds) => BringToFront.scheduleAlarm(seconds) : noop;
+export const cancelAlarm = BringToFront ? () => BringToFront.cancelAlarm() : noop;
+export const beep = BringToFront ? (durationMs) => BringToFront.beep(durationMs) : noop;
+export const beepFinal = BringToFront ? () => BringToFront.beepFinal() : noop;
+export const speak = BringToFront ? (text) => BringToFront.speak(text) : noop;

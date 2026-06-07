@@ -1,6 +1,6 @@
 const PLAYERS_PER_GAME = 10;
 const MIN_GAMES_PER_PLAYER = 4;
-const MIN_MINUTES_PER_ROTATION = 10;
+const MIN_MINUTES_PER_ROTATION = 1;
 
 function gcd(a, b) {
   while (b) { [a, b] = [b, a % b]; }

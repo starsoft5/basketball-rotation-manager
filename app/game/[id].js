@@ -541,17 +541,29 @@ export default function GameScreen() {
   }, [pauseTimer]);
 
   const endBreak = useCallback(async () => {
+    let breakElapsedMs = 0;
     if (breakTimerRef.current) {
       clearInterval(breakTimerRef.current);
       breakTimerRef.current = null;
     }
     if (breakStartRef.current) {
-      const elapsed = Math.floor((Date.now() - breakStartRef.current) / 1000);
+      breakElapsedMs = Date.now() - breakStartRef.current;
+      const elapsed = Math.floor(breakElapsedMs / 1000);
       const newBreakTotal = breakAccumulatedRef.current + elapsed;
       setBreakTime(newBreakTotal);
       breakTimeRef.current = newBreakTotal;
       breakStartRef.current = null;
       try { await updateGameBreakTime(gameId, newBreakTotal); } catch (e) {}
+    }
+    if (breakElapsedMs > 0 && gameEndTimeRef.current > 0) {
+      const expectedTransitionMs = transitionSecondsRef.current * 1000;
+      const excess = breakElapsedMs - expectedTransitionMs;
+      if (excess > 0) {
+        const newEnd = gameEndTimeRef.current + excess;
+        setGameEndTime(newEnd);
+        gameEndTimeRef.current = newEnd;
+        try { await updateGameEndTime(gameId, newEnd); } catch (e) {}
+      }
     }
     setIsOnBreak(false);
     await adjustRotationsForEndTime();
@@ -649,9 +661,10 @@ export default function GameScreen() {
   const handleStartGame = async () => {
     try {
       const settings = await getSettings();
-      const mode = settings.distributionMode;
-      const totalMinutes = mode === "equal_time" ? settings.equalTimeTotalMinutes : settings.gameTotalMinutes;
-      const endTime = Date.now() + totalMinutes * 60 * 1000;
+      const transitionSecs = settings.transitionTotalSeconds || 0;
+      const playTimeMs = schedule.length * rotationDurationRef.current * 1000;
+      const transitionMs = Math.max(schedule.length - 1, 0) * transitionSecs * 1000;
+      const endTime = Date.now() + playTimeMs + transitionMs;
       setGameEndTime(endTime);
       gameEndTimeRef.current = endTime;
       try { await updateGameEndTime(gameId, endTime); } catch (e) {}
@@ -1048,9 +1061,10 @@ export default function GameScreen() {
     if (gameEndTime > 0) {
       return new Date(gameEndTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
     }
-    const totalMs = schedule.length * rotationDuration * 1000;
+    const playMs = schedule.length * rotationDuration * 1000;
+    const transMs = Math.max(schedule.length - 1, 0) * transitionSecondsRef.current * 1000;
     const now = clockTick || Date.now();
-    return new Date(now + totalMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return new Date(now + playMs + transMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   })();
   const progress =
     gameStatus === "in_progress"

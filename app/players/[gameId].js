@@ -31,6 +31,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { addPlayer, getPlayers, updateGameStatus, deletePlayer, getSettings } from "../../db/database";
 import AnimatedButton from "../../components/AnimatedButton";
 import * as Haptics from "expo-haptics";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const AVATAR_COLORS = ["#F97316", "#3B82F6", "#8B5CF6", "#EC4899", "#14B8A6", "#EAB308", "#EF4444", "#06B6D4"];
 function getAvatarColor(name) {
@@ -122,6 +123,7 @@ function PlayerRow({ item, index, isChecked, onToggle, onRemove }) {
 export default function PlayerEntryScreen() {
   const router = useRouter();
   const { gameId } = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   const [playerName, setPlayerName] = useState("");
   const [players, setPlayers] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -463,7 +465,7 @@ export default function PlayerEntryScreen() {
 
       {/* Bottom Bar */}
       {players.length >= 10 && (
-        <Animated.View entering={FadeInUp.duration(400).springify()} style={s.bottomBar}>
+        <Animated.View entering={FadeInUp.duration(400).springify()} style={[s.bottomBar, { paddingBottom: Math.max(insets.bottom, 14) + 14 }]}>
           <View style={s.bottomInfo}>
             <Text style={s.bottomLabel}>Selected</Text>
             <Text style={s.bottomCount}>
@@ -731,7 +733,6 @@ const s = StyleSheet.create({
     backgroundColor: "#1E293B",
     paddingHorizontal: 16,
     paddingTop: 14,
-    paddingBottom: 32,
     borderTopWidth: 1,
     borderTopColor: "#334155",
     gap: 14,
