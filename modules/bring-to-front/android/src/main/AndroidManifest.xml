@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Wake the screen and bring the app to front from a background alarm -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Fire the 10-seconds-left alert at an exact time, even while the app/JS is suspended -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Survive Doze / battery saver so the alarm is not deferred -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Short foreground service that speaks the native 10->1 countdown -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SHORT_SERVICE" />
+
+    <application>
+        <!-- Target of the exact alarm: wakes screen + reorders the app Activity to front -->
+        <receiver
+            android:name=".BringToFrontReceiver"
+            android:exported="false" />
+
+        <!-- Runs the native voice countdown independent of the JS thread -->
+        <service
+            android:name=".BringToFrontService"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
+    </application>
+
+</manifest>

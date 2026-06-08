@@ -1,10 +1,13 @@
 package expo.modules.bringtofront
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
 import android.media.MediaPlayer
 import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
@@ -37,8 +40,27 @@ class BringToFrontModule : Module() {
         }
     }
 
+    private fun alarmPendingIntent(context: Context): PendingIntent {
+        val intent = Intent(context, BringToFrontReceiver::class.java).apply {
+            action = "expo.modules.bringtofront.BRING_TO_FRONT"
+        }
+        var flags = PendingIntent.FLAG_UPDATE_CURRENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags = flags or PendingIntent.FLAG_IMMUTABLE
+        }
+        return PendingIntent.getBroadcast(context.applicationContext, ALARM_REQUEST_CODE, intent, flags)
+    }
+
     override fun definition() = ModuleDefinition {
         Name("BringToFront")
+
+        OnActivityEntersForeground {
+            appInForeground = true
+        }
+
+        OnActivityEntersBackground {
+            appInForeground = false
+        }
 
         OnCreate {
             val ctx = appContext.reactContext
@@ -171,29 +193,68 @@ class BringToFrontModule : Module() {
             true
         }
 
+        // Schedule an exact, Doze-exempt alarm that fires `seconds` from now and
+        // wakes the screen + brings the app to front via BringToFrontReceiver.
+        // Runs through the OS AlarmManager, so it fires even when the JS thread is
+        // suspended (app backgrounded, screen locked, or in power-save).
         AsyncFunction("scheduleAlarm") { seconds: Int ->
-            val context = appContext.reactContext
-            if (context != null) {
-                val delayMs = seconds * 1000L
-                val serviceIntent = Intent(context, BringToFrontService::class.java).apply {
-                    putExtra("delay_ms", delayMs)
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    context.startForegroundService(serviceIntent)
+            val context = appContext.reactContext ?: return@AsyncFunction false
+            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            val triggerAt = System.currentTimeMillis() + seconds * 1000L
+            val pi = alarmPendingIntent(context)
+            am.cancel(pi)
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
+                    // Exact-alarm permission revoked by user; fall back to inexact (still wakes from idle).
+                    am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
                 } else {
-                    context.startService(serviceIntent)
+                    am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
                 }
+            } catch (e: SecurityException) {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pi)
             }
             true
         }
 
         AsyncFunction("cancelAlarm") {
-            val context = appContext.reactContext
-            if (context != null) {
-                val serviceIntent = Intent(context, BringToFrontService::class.java)
-                context.stopService(serviceIntent)
+            val context = appContext.reactContext ?: return@AsyncFunction false
+            val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            am.cancel(alarmPendingIntent(context))
+            true
+        }
+
+        AsyncFunction("isIgnoringBatteryOptimizations") {
+            val context = appContext.reactContext ?: return@AsyncFunction true
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+                pm.isIgnoringBatteryOptimizations(context.packageName)
+            } else {
+                true
+            }
+        }
+
+        AsyncFunction("requestIgnoreBatteryOptimizations") {
+            val context = appContext.reactContext ?: return@AsyncFunction false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                try {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    context.startActivity(intent)
+                } catch (e: Exception) {}
             }
             true
         }
+    }
+
+    companion object {
+        private const val ALARM_REQUEST_CODE = 1001
+
+        // Set from the Activity lifecycle; read by BringToFrontService to decide
+        // whether the JS timer is already handling the spoken countdown.
+        @Volatile
+        @JvmStatic
+        var appInForeground: Boolean = false
     }
 }

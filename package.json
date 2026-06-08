@@ -43,5 +43,13 @@
   "private": true,
   "devDependencies": {
     "sharp": "^0.34.5"
+  },
+  "expo": {
+    "doctor": {
+      "reactNativeDirectoryCheck": {
+        "listUnknownPackages": false,
+        "exclude": ["@react-native-ml-kit/text-recognition"]
+      }
+    }
   }
 }

@@ -47,7 +47,7 @@ import {
 import { generateSchedule, generateScheduleEqualTime, calcRotations, calcRotationsEqualTime, formatTime } from "../../utils/scheduler";
 import RotationCard from "../../components/RotationCard";
 import CircularTimer from "../../components/CircularTimer";
-import { scheduleAlarm, cancelAlarm, bringToFront, canOverlay, openOverlaySettings, speak } from "../../modules/bring-to-front";
+import { scheduleAlarm, cancelAlarm, bringToFront, canOverlay, openOverlaySettings, speak, isIgnoringBatteryOptimizations, requestIgnoreBatteryOptimizations } from "../../modules/bring-to-front";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -183,6 +183,18 @@ export default function GameScreen() {
           "To show the timer over other apps, enable \"Display over other apps\" for this app.",
           [
             { text: "Open Settings", onPress: () => openOverlaySettings() },
+            { text: "Later", style: "cancel" },
+          ]
+        );
+      }
+    }).catch(() => {});
+    isIgnoringBatteryOptimizations().then((ignoring) => {
+      if (!ignoring) {
+        Alert.alert(
+          "Allow Background Alerts",
+          "So the timer can pop to the front when the screen is locked or in battery saver, allow this app to run unrestricted in the background.",
+          [
+            { text: "Allow", onPress: () => requestIgnoreBatteryOptimizations() },
             { text: "Later", style: "cancel" },
           ]
         );
