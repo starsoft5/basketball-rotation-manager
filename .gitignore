@@ -3,6 +3,13 @@
 # dependencies
 node_modules/
 
+# package-lock.json is intentionally untracked: local npm 11 and EAS's npm 10
+# resolve transitive Expo deps to different versions (e.g. @expo/metro-runtime
+# 55.0.11 vs 56.0.14), which breaks `npm ci` on EAS. Without a committed lockfile
+# EAS runs `npm install` and resolves a consistent tree. To restore a committed
+# lockfile later, regenerate it with the same npm version EAS uses (npm 10).
+package-lock.json
+
 # Expo
 .expo/
 dist/
