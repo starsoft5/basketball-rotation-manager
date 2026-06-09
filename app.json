@@ -24,7 +24,7 @@
         "backgroundColor": "#ffffff"
       },
       "package": "com.apollo.estrella.basketballrotation",
-      "versionCode": 12
+      "versionCode": 13
     },
     "web": {
       "favicon": "./assets/favicon.png",
