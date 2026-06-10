@@ -237,7 +237,10 @@
       "Bash(./node_modules/.bin/eas build *)",
       "Bash(./node_modules/.bin/eas build:view 6aefa16d-bfb0-4aec-90f0-2a619af80395)",
       "Bash(grep -rl \"AD_ID\\\\|com.google.android.gms.permission.AD_ID\" android/)",
-      "Bash(grep -rn \"play-services-ads\\\\|play-services-measurement\\\\|com.google.android.gms.ads\\\\|AdvertisingIdClient\\\\|applovin\\\\|facebook\\\\|appsflyer\\\\|adjust\\\\|onesignal\" android/app/build.gradle android/build.gradle)"
+      "Bash(grep -rn \"play-services-ads\\\\|play-services-measurement\\\\|com.google.android.gms.ads\\\\|AdvertisingIdClient\\\\|applovin\\\\|facebook\\\\|appsflyer\\\\|adjust\\\\|onesignal\" android/app/build.gradle android/build.gradle)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --index-filter \"git rm --cached --ignore-unmatch qrcodes/basketball.apk\" -- origin/master..HEAD)",
+      "Bash(echo \"=== exit: $? ===\")",
+      "Bash(awk '$1==\"blob\"{print $3, $4}')"
     ]
   }
 }
