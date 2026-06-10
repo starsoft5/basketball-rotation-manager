@@ -1,4 +1,19 @@
 {
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Process | Sort-Object -Descending WS | Select-Object -First 12 Name,Id,@{N='WS_MB';E={[int]\\($_.WS/1MB\\)}},@{N='CPU_s';E={[int]$_.CPU}} | Format-Table -AutoSize)",
+      "Bash(robocopy \"C:\\\\Users\\\\Administrator\\\\.gradle\" \"E:\\\\.gradle\" /E /MOVE /R:1 /W:1 /MT:16 /NFL /NDL /NP)",
+      "Bash(echo \"ROBOCOPY_EXIT=$?\")",
+      "Bash(NODE_OPTIONS=--use-system-ca npx eas-cli whoami)",
+      "Bash(NODE_OPTIONS=--use-system-ca npx expo install --check)",
+      "Bash(NODE_OPTIONS=--use-system-ca npm install)",
+      "Bash(NODE_OPTIONS=--use-system-ca npx -y expo-doctor)",
+      "Bash(NODE_OPTIONS=--use-system-ca npm ci)"
+    ],
+    "additionalDirectories": [
+      "E:\\basketball-rotation-manager"
+    ]
+  },
   "enabledPlugins": {
     "expo@claude-plugins-official": true
   }

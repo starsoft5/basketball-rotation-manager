@@ -231,7 +231,13 @@
       "PowerShell(git filter-branch *)",
       "PowerShell(git stash *)",
       "PowerShell(git *)",
-      "Bash(Get-ChildItem -Path \"C:\\\\claudeapps\\\\basketball-rotation\" -Exclude node_modules -Recurse -Filter \"*.tsx\" -o \"*.ts\" -o \"*.js\")"
+      "Bash(Get-ChildItem -Path \"C:\\\\claudeapps\\\\basketball-rotation\" -Exclude node_modules -Recurse -Filter \"*.tsx\" -o \"*.ts\" -o \"*.js\")",
+      "Bash(npm install *)",
+      "Bash(./node_modules/.bin/eas whoami *)",
+      "Bash(./node_modules/.bin/eas build *)",
+      "Bash(./node_modules/.bin/eas build:view 6aefa16d-bfb0-4aec-90f0-2a619af80395)",
+      "Bash(grep -rl \"AD_ID\\\\|com.google.android.gms.permission.AD_ID\" android/)",
+      "Bash(grep -rn \"play-services-ads\\\\|play-services-measurement\\\\|com.google.android.gms.ads\\\\|AdvertisingIdClient\\\\|applovin\\\\|facebook\\\\|appsflyer\\\\|adjust\\\\|onesignal\" android/app/build.gradle android/build.gradle)"
     ]
   }
 }
