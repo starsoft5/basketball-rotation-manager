@@ -53,9 +53,9 @@ function Particle({ config }) {
   );
 }
 
-export default function ConfettiAnimation({ visible, onComplete }) {
+export default function ConfettiAnimation({ visible, onComplete, count = PARTICLE_COUNT }) {
   const particles = useMemo(() => {
-    return Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
+    return Array.from({ length: count }, (_, i) => ({
       id: i,
       startX: Math.random() * SCREEN_W,
       startY: -20 - Math.random() * 80,
@@ -66,7 +66,7 @@ export default function ConfettiAnimation({ visible, onComplete }) {
       rounded: Math.random() > 0.5,
       delay: Math.random() * 600,
     }));
-  }, [visible]);
+  }, [visible, count]);
 
   useEffect(() => {
     if (!visible) return;

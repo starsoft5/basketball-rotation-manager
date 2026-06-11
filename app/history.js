@@ -7,8 +7,10 @@ import {
   StyleSheet,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { getAllGames, deleteGame } from "../db/database";
 import AnimatedButton from "../components/AnimatedButton";
+import AnimatedCounter from "../components/AnimatedCounter";
 import * as Haptics from "expo-haptics";
 
 export default function HistoryScreen() {
@@ -69,7 +71,8 @@ export default function HistoryScreen() {
         keyExtractor={(item) => item.id.toString()}
         refreshing={refreshing}
         onRefresh={handleRefresh}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
+          <Animated.View entering={FadeInDown.delay(Math.min(index * 60, 600)).duration(350)}>
           <AnimatedButton
             style={s.card}
             onPress={() => {
@@ -97,13 +100,14 @@ export default function HistoryScreen() {
               </View>
             </View>
             <View style={s.cardInfo}>
-              <Text style={s.infoText}>{item.total_players} players</Text>
+              <AnimatedCounter value={item.total_players} suffix=" players" style={s.infoText} />
               <Text style={s.infoText}>
                 Rotation {item.current_rotation}/12
               </Text>
               <Text style={s.dateText}>{item.created_at}</Text>
             </View>
           </AnimatedButton>
+          </Animated.View>
         )}
         ListEmptyComponent={
           <View style={s.emptyWrap}>

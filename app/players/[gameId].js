@@ -296,44 +296,6 @@ export default function PlayerEntryScreen() {
         keyboardShouldPersistTaps="always"
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <Animated.View entering={FadeInDown.duration(400).delay(50)} style={s.headerCard}>
-          <View style={s.headerRow}>
-            <View>
-              <Text style={s.headerText}>Players</Text>
-              <Text style={s.headerCount}>{players.length} registered</Text>
-            </View>
-            <Animated.View
-              key={`badge-${selectedIds.size}`}
-              entering={ZoomIn.duration(250).springify()}
-              style={[
-                s.badge,
-                players.length >= 10 && selectedIds.size === 10 && s.badgeReady,
-              ]}
-            >
-              <Text style={[
-                s.badgeText,
-                players.length >= 10 && selectedIds.size === 10 && s.badgeTextReady,
-              ]}>
-                {players.length < 10 ? `Need ${10 - players.length} more` : `${selectedIds.size}/10`}
-              </Text>
-            </Animated.View>
-          </View>
-          {players.length >= 10 && (
-            <Animated.View entering={FadeIn.duration(300)} style={s.progressBarOuter}>
-              <Animated.View
-                style={[
-                  s.progressBarInner,
-                  {
-                    width: `${progressPercent * 100}%`,
-                    backgroundColor: selectedIds.size === 10 ? "#16A34A" : "#3B82F6",
-                  },
-                ]}
-              />
-            </Animated.View>
-          )}
-        </Animated.View>
-
         {/* Stats Card */}
         {stats && (
           <Animated.View entering={FadeInDown.duration(400).delay(100)} style={s.statsCard}>

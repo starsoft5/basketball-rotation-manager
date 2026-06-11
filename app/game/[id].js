@@ -19,6 +19,11 @@ import * as Haptics from "expo-haptics";
 import ReAnimated, { FadeInDown, FadeInUp, SlideInLeft, SlideInRight, ZoomIn, FadeIn } from "react-native-reanimated";
 import AnimatedButton from "../../components/AnimatedButton";
 import ConfettiAnimation from "../../components/ConfettiAnimation";
+import RotationFlash from "../../components/RotationFlash";
+import BumpText from "../../components/BumpText";
+import Pulse from "../../components/Pulse";
+import ProgressShimmer from "../../components/ProgressShimmer";
+import CountdownOverlay from "../../components/CountdownOverlay";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useKeepAwake } from "expo-keep-awake";
 import * as Notifications from "expo-notifications";
@@ -126,8 +131,10 @@ export default function GameScreen() {
   const [paymentAmount, setPaymentAmount] = useState(280);
   const [distributionMode, setDistributionMode] = useState("unequal_games");
   const [clockTick, setClockTick] = useState(Date.now());
-  const [timerBlink, setTimerBlink] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [flashTrigger, setFlashTrigger] = useState(0);
+  const [milestoneConfetti, setMilestoneConfetti] = useState(false);
+  const [showCountdown, setShowCountdown] = useState(false);
 
   useKeepAwake();
 
@@ -166,14 +173,6 @@ export default function GameScreen() {
     const id = setInterval(() => setClockTick(Date.now()), 1000);
     return () => clearInterval(id);
   }, [gameStatus]);
-
-  useEffect(() => {
-    if (timeRemaining <= 10 && timeRemaining > 0 && isRunning) {
-      const id = setInterval(() => setTimerBlink((v) => !v), 500);
-      return () => { clearInterval(id); setTimerBlink(false); };
-    }
-    setTimerBlink(false);
-  }, [timeRemaining <= 10 && timeRemaining > 0 && isRunning]);
 
   useEffect(() => {
     canOverlay().then((allowed) => {
@@ -333,6 +332,13 @@ export default function GameScreen() {
     setCurrentRotation(nextRotation);
     await updateGameRotation(gameId, nextRotation);
     setTimeRemaining(rotationDurationRef.current);
+
+    // #3 — buzzer flash on every rotation change.
+    setFlashTrigger((n) => n + 1);
+    // #8 — small confetti burst when the game passes its halfway rotation.
+    if (sched.length > 2 && nextRotation === Math.ceil(sched.length / 2) + 1) {
+      setMilestoneConfetti(true);
+    }
 
     if (nextRotation - 1 < sched.length) {
       await updateRotationStatus(sched[nextRotation - 1].id, "active");
@@ -670,7 +676,10 @@ export default function GameScreen() {
     await handleEndTimeEdit(endDate.getTime());
   }, [editEndHour, editEndMinute, editEndAmPm, handleEndTimeEdit]);
 
-  const handleStartGame = async () => {
+  // #8 — show the 3-2-1 countdown first; beginGame runs when it finishes.
+  const handleStartGame = () => setShowCountdown(true);
+
+  const beginGame = async () => {
     try {
       const settings = await getSettings();
       const transitionSecs = settings.transitionTotalSeconds || 0;
@@ -1024,6 +1033,9 @@ export default function GameScreen() {
             await updateGameRotation(gameId, nextRotation);
             setTimeRemaining(rotationDurationRef.current);
 
+            // #3 — buzzer flash on skip-driven rotation change.
+            setFlashTrigger((n) => n + 1);
+
             if (nextRotation - 1 < sched.length) {
               await updateRotationStatus(sched[nextRotation - 1].id, "active");
             }
@@ -1125,7 +1137,8 @@ export default function GameScreen() {
           timeRemaining={timeRemaining}
           totalDuration={rotationDuration}
           formattedTime={formatTime(timeRemaining)}
-          blink={timerBlink}
+          running={isRunning}
+          onBreak={isOnBreak}
           subtitle={
             gameStatus === "ready"
               ? "Ready to start"
@@ -1136,7 +1149,9 @@ export default function GameScreen() {
         />
 
         <View style={s.progressBg}>
-          <Animated.View style={[s.progressFill, { width: progressWidth }]} />
+          <Animated.View style={[s.progressFill, { width: progressWidth, overflow: "hidden" }]}>
+            <ProgressShimmer active={isRunning} />
+          </Animated.View>
         </View>
 
         <View style={s.statsRow}>
@@ -1152,9 +1167,10 @@ export default function GameScreen() {
           )}
           <View style={s.stat}>
             <Text style={s.statLabel}>🔄 Rotations</Text>
-            <Text style={s.statValue}>
-              {gameStatus === "completed" ? schedule.length : Math.max(currentRotation - 1, 0)}/{schedule.length}
-            </Text>
+            <BumpText
+              style={s.statValue}
+              value={`${gameStatus === "completed" ? schedule.length : Math.max(currentRotation - 1, 0)}/${schedule.length}`}
+            />
           </View>
           <TouchableOpacity
             style={s.stat}
@@ -1260,7 +1276,9 @@ export default function GameScreen() {
 
         {endTimeReached && gameStatus === "in_progress" && (
           <ReAnimated.View entering={FadeInDown.duration(300)} style={s.overtimeBanner}>
-            <Text style={s.overtimeBannerText}>OVERTIME — Past end time</Text>
+            <Pulse>
+              <Text style={s.overtimeBannerText}>OVERTIME — Past end time</Text>
+            </Pulse>
             <TouchableOpacity onPress={openEndTimePicker} activeOpacity={0.7}>
               <Text style={s.breakEditEnd}>Extend</Text>
             </TouchableOpacity>
@@ -1472,9 +1490,11 @@ export default function GameScreen() {
           <View style={s.etContent}>
             <Text style={s.etTitle}>Rotation {breakModalRotation} — Next Players</Text>
             {transitionCountdown > 0 && (
-              <Text style={{ color: "#FB923C", fontSize: 32, fontWeight: "bold", textAlign: "center", marginVertical: 8 }}>
-                {formatTime(transitionCountdown)}
-              </Text>
+              <Pulse min={0.45} duration={550} style={{ marginTop: 4, marginBottom: 20 }}>
+                <Text style={{ color: "#FB923C", fontSize: 32, fontWeight: "bold", textAlign: "center" }}>
+                  {formatTime(transitionCountdown)}
+                </Text>
+              </Pulse>
             )}
             {transitionExpired && (
               <Text style={{ color: "#EF4444", fontSize: 16, fontWeight: "bold", textAlign: "center", marginVertical: 8 }}>
@@ -1646,6 +1666,12 @@ export default function GameScreen() {
         }}
       />
       <ConfettiAnimation visible={showConfetti} onComplete={() => setShowConfetti(false)} />
+      <ConfettiAnimation visible={milestoneConfetti} count={18} onComplete={() => setMilestoneConfetti(false)} />
+      <RotationFlash trigger={flashTrigger} />
+      <CountdownOverlay
+        visible={showCountdown}
+        onDone={() => { setShowCountdown(false); beginGame(); }}
+      />
     </View>
   );
 }
@@ -1849,7 +1875,7 @@ const s = StyleSheet.create({
     backgroundColor: "#F97316",
   },
   etSaveText: { color: "#FFF", textAlign: "center", fontWeight: "bold", fontSize: 16 },
-  breakPlayerList: { marginBottom: 4 },
+  breakPlayerList: { marginTop: 4, marginBottom: 4 },
   breakPlayerRow: {
     flexDirection: "row",
     alignItems: "center",

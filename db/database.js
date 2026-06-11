@@ -238,7 +238,10 @@ export async function updateRotationStatus(rotationId, status) {
 export async function getAllGames() {
   const database = await getDatabase();
   return await database.getAllAsync(
-    "SELECT * FROM games ORDER BY created_at DESC"
+    `SELECT g.*,
+            (SELECT COUNT(*) FROM players p WHERE p.game_id = g.id) AS total_players
+     FROM games g
+     ORDER BY g.created_at DESC`
   );
 }
 

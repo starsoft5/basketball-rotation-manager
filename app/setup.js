@@ -13,6 +13,14 @@ import {
 import { useRouter } from "expo-router";
 import { createGame, getSettings, saveSetting } from "../db/database";
 import AnimatedButton from "../components/AnimatedButton";
+import Animated, {
+  FadeInDown,
+  ZoomIn,
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  interpolateColor,
+} from "react-native-reanimated";
 
 export default function SetupScreen() {
   const router = useRouter();
@@ -161,20 +169,31 @@ export default function SetupScreen() {
     ? Math.floor((activeTotalMinutes + transitionMins) / (minutesPerGame + transitionMins))
     : Math.floor(activeTotalMinutes / minutesPerGame);
 
+  // Smoothly fade the Continue button between disabled (grey) and active (orange).
+  const continueEnabled = useSharedValue(gameName.trim() ? 1 : 0);
+  useEffect(() => {
+    continueEnabled.value = withTiming(gameName.trim() ? 1 : 0, { duration: 250 });
+  }, [gameName]);
+  const continueBtnStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(continueEnabled.value, [0, 1], ["#334155", "#F97316"]),
+  }));
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={s.flex}
     >
       <ScrollView style={s.scroll}>
-        <View style={s.headingRow}>
+        <Animated.View entering={FadeInDown.duration(400)} style={s.headingRow}>
           <Text style={s.heading}>Game Setup</Text>
-          <AnimatedButton onPress={handleOpenSettings} style={s.settingsBtn}>
-            <Text style={s.settingsIcon}>⚙️</Text>
-          </AnimatedButton>
-        </View>
+          <Animated.View entering={ZoomIn.duration(300).delay(120).springify()}>
+            <AnimatedButton onPress={handleOpenSettings} style={s.settingsBtn}>
+              <Text style={s.settingsIcon}>⚙️</Text>
+            </AnimatedButton>
+          </Animated.View>
+        </Animated.View>
 
-        <View style={s.field}>
+        <Animated.View entering={FadeInDown.duration(400).delay(80)} style={s.field}>
           <Text style={s.label}>Game Name <Text style={{ color: "#EF4444" }}>(Required)</Text></Text>
           <TextInput
             style={s.input}
@@ -183,9 +202,9 @@ export default function SetupScreen() {
             value={gameName}
             onChangeText={setGameName}
           />
-        </View>
+        </Animated.View>
 
-        <View style={s.modeSection}>
+        <Animated.View entering={FadeInDown.duration(400).delay(160)} style={s.modeSection}>
           <View style={[s.modeCard, s.modeCardActive]}>
             <View style={s.modeTextWrap}>
               <Text style={[s.modeCardTitle, s.modeCardTitleActive]}>
@@ -196,9 +215,9 @@ export default function SetupScreen() {
               </Text>
             </View>
           </View>
-        </View>
+        </Animated.View>
 
-        <View style={s.infoCard}>
+        <Animated.View entering={FadeInDown.duration(400).delay(240)} style={s.infoCard}>
           <Text style={s.infoTitle}>Rotation Info</Text>
           <Text style={s.infoText}>
             {"• "}{activeHours}h {activeRemainingMins > 0 ? `${activeRemainingMins}m` : ""} total ({activeTotalMinutes} min){"\n"}
@@ -209,18 +228,17 @@ export default function SetupScreen() {
             {"• 10 players per game (5v5)"}{"\n"}
             {"• Fair rotation for all players"}
           </Text>
-        </View>
+        </Animated.View>
 
-        <AnimatedButton
-          style={[
-            s.continueBtn,
-            gameName.trim() ? s.btnActive : s.btnDisabled,
-          ]}
-          onPress={handleContinue}
-          disabled={!gameName.trim()}
-        >
-          <Text style={s.continueBtnText}>Add Players →</Text>
-        </AnimatedButton>
+        <Animated.View entering={FadeInDown.duration(400).delay(320)}>
+          <AnimatedButton
+            style={[s.continueBtn, continueBtnStyle]}
+            onPress={handleContinue}
+            disabled={!gameName.trim()}
+          >
+            <Text style={s.continueBtnText}>Add Players →</Text>
+          </AnimatedButton>
+        </Animated.View>
       </ScrollView>
 
       <Modal visible={showSettings} animationType="fade" transparent>

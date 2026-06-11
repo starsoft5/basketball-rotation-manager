@@ -1,6 +1,33 @@
+import { useEffect } from "react";
 import { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from "react-native";
-import Animated, { FadeIn, FadeInRight, SlideInLeft, ZoomIn } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeInRight,
+  ZoomIn,
+  Layout,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  cancelAnimation,
+  Easing,
+} from "react-native-reanimated";
+
+// #5 — a soft border-glow that breathes while the rotation is on court.
+function ActiveGlow() {
+  const glow = useSharedValue(0.35);
+  useEffect(() => {
+    glow.value = withRepeat(
+      withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.quad) }),
+      -1,
+      true
+    );
+    return () => cancelAnimation(glow);
+  }, []);
+  const style = useAnimatedStyle(() => ({ opacity: glow.value }));
+  return <Animated.View pointerEvents="none" style={[s.glow, style]} />;
+}
 
 export default function RotationCard({ rotation, isActive, isCompleted, onBenchPlayer, highlightedPlayerIds = [] }) {
   const [selectedId, setSelectedId] = useState(null);
@@ -21,6 +48,7 @@ export default function RotationCard({ rotation, isActive, isCompleted, onBenchP
         !isActive && s.cardShadow,
       ]}
     >
+      {isActive && <ActiveGlow />}
       <View style={s.headerRow}>
         <View style={s.headerLeft}>
           <Text style={s.rotTitle}>Rotation {rotation.rotationNumber || rotation.rotation_number}</Text>
@@ -108,7 +136,16 @@ export default function RotationCard({ rotation, isActive, isCompleted, onBenchP
           }
 
           return (
-            <Animated.View key={player.id} entering={FadeInRight.delay(chipIndex * 40).duration(300)} style={chipStyle}>
+            <Animated.View
+              key={player.id}
+              entering={
+                isHighlighted
+                  ? ZoomIn.duration(350).springify().damping(12)
+                  : FadeInRight.delay(chipIndex * 40).duration(300)
+              }
+              layout={Layout.springify().damping(16)}
+              style={chipStyle}
+            >
               <Text style={textStyle}>
                 #{player.jersey_number} {player.name}
               </Text>
@@ -132,6 +169,12 @@ const s = StyleSheet.create({
     ...Platform.select({
       android: { elevation: 4 },
     }),
+  },
+  glow: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#FB923C",
   },
   cardActive: {
     ...Platform.select({

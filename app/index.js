@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { getSettings } from "../db/database";
 import AnimatedButton from "../components/AnimatedButton";
+import Animated, { FadeInDown, FadeIn, ZoomIn } from "react-native-reanimated";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -28,41 +29,49 @@ export default function HomeScreen() {
   return (
     <ScrollView style={s.scroll} contentContainerStyle={s.container}>
       <Text style={s.footer}>Developed by Pol Estrella{"\n"}Version 1.0</Text>
-      <Text style={s.emoji}>🏀</Text>
-      <Text style={s.title}>Basketball Rotation</Text>
-      <Text style={s.subtitle}>
+      <Animated.Text entering={ZoomIn.duration(450).springify().damping(9)} style={s.emoji}>🏀</Animated.Text>
+      <Animated.Text entering={FadeInDown.duration(400).delay(120)} style={s.title}>Basketball Rotation</Animated.Text>
+      <Animated.Text entering={FadeInDown.duration(400).delay(180)} style={s.subtitle}>
         Manage player rotations for your pickup games
-      </Text>
+      </Animated.Text>
 
-      <AnimatedButton
-        style={s.primaryBtn}
-        onPress={() => router.push("/setup")}
-      >
-        <Text style={s.primaryBtnText}>New Game</Text>
-      </AnimatedButton>
+      <Animated.View entering={FadeInDown.duration(400).delay(260)} style={s.fullWidth}>
+        <AnimatedButton
+          style={s.primaryBtn}
+          onPress={() => router.push("/setup")}
+        >
+          <Text style={s.primaryBtnText}>New Game</Text>
+        </AnimatedButton>
+      </Animated.View>
 
-      <AnimatedButton
-        style={s.secondaryBtn}
-        onPress={() => router.push("/history")}
-      >
-        <Text style={s.secondaryBtnText}>Game History</Text>
-      </AnimatedButton>
+      <Animated.View entering={FadeInDown.duration(400).delay(320)} style={s.fullWidth}>
+        <AnimatedButton
+          style={s.secondaryBtn}
+          onPress={() => router.push("/history")}
+        >
+          <Text style={s.secondaryBtnText}>Game History</Text>
+        </AnimatedButton>
+      </Animated.View>
 
-      <AnimatedButton
-        style={[s.secondaryBtn, s.shareBtn]}
-        onPress={() => router.push("/share")}
-      >
-        <Text style={s.secondaryBtnText}>📲 Share to Another Device</Text>
-      </AnimatedButton>
+      <Animated.View entering={FadeInDown.duration(400).delay(380)} style={s.fullWidth}>
+        <AnimatedButton
+          style={[s.secondaryBtn, s.shareBtn]}
+          onPress={() => router.push("/share")}
+        >
+          <Text style={s.secondaryBtnText}>📲 Share to Another Device</Text>
+        </AnimatedButton>
+      </Animated.View>
 
-      <AnimatedButton
-        style={[s.secondaryBtn, s.quitBtn]}
-        onPress={() => BackHandler.exitApp()}
-      >
-        <Text style={s.quitBtnText}>Quit</Text>
-      </AnimatedButton>
+      <Animated.View entering={FadeInDown.duration(400).delay(440)} style={s.fullWidth}>
+        <AnimatedButton
+          style={[s.secondaryBtn, s.quitBtn]}
+          onPress={() => BackHandler.exitApp()}
+        >
+          <Text style={s.quitBtnText}>Quit</Text>
+        </AnimatedButton>
+      </Animated.View>
 
-      <View style={s.infoCard}>
+      <Animated.View entering={FadeIn.duration(500).delay(520)} style={s.infoCard}>
         <Text style={s.infoTitle}>How it works:</Text>
         <Text style={s.infoText}>
           {"• "}Game lasts {totalMinutes} minutes{"\n"}
@@ -74,7 +83,7 @@ export default function HomeScreen() {
           {"• "}Supports any number of players (10+){"\n"}
           {"• "}Playing time balanced fairly for all
         </Text>
-      </View>
+      </Animated.View>
 
     </ScrollView>
   );
@@ -92,6 +101,7 @@ const s = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 32,
   },
+  fullWidth: { width: "100%" },
   emoji: { fontSize: 48, marginBottom: 8 },
   title: {
     fontSize: 28,

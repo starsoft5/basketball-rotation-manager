@@ -240,7 +240,11 @@
       "Bash(grep -rn \"play-services-ads\\\\|play-services-measurement\\\\|com.google.android.gms.ads\\\\|AdvertisingIdClient\\\\|applovin\\\\|facebook\\\\|appsflyer\\\\|adjust\\\\|onesignal\" android/app/build.gradle android/build.gradle)",
       "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --index-filter \"git rm --cached --ignore-unmatch qrcodes/basketball.apk\" -- origin/master..HEAD)",
       "Bash(echo \"=== exit: $? ===\")",
-      "Bash(awk '$1==\"blob\"{print $3, $4}')"
+      "Bash(awk '$1==\"blob\"{print $3, $4}')",
+      "Bash(NODE_OPTIONS=--use-system-ca npx expo *)",
+      "PowerShell($adb = Join-Path $env:LOCALAPPDATA \"Android\\\\Sdk\\\\platform-tools\\\\adb.exe\"; if \\(Test-Path $adb\\) { \"FOUND: $adb\"; & $adb devices -l } else { \"NOT at $adb\"; Get-ChildItem -Path \"$env:LOCALAPPDATA\\\\Android\",\"C:\\\\Android\",\"$env:ProgramFiles\\\\Android\" -Recurse -Filter adb.exe -ErrorAction SilentlyContinue | Select-Object -First 3 -ExpandProperty FullName })",
+      "mcp__ide__getDiagnostics",
+      "PowerShell($env:NODE_OPTIONS = \"--use-system-ca\"; & \"$PWD\\\\android\\\\gradlew.bat\" -p android assembleRelease --no-daemon)"
     ]
   }
 }
