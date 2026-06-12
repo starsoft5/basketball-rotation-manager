@@ -1,6 +1,10 @@
 const PLAYERS_PER_GAME = 10;
 const MIN_GAMES_PER_PLAYER = 4;
 const MIN_MINUTES_PER_ROTATION = 1;
+// At/above this player count, drop the hardcoded 4-game floor so rotations can
+// stay at the requested duration (e.g. exactly 10 min) instead of being shrunk
+// to guarantee 4 games each. The user's explicit min-games setting still applies.
+const LARGE_GROUP_THRESHOLD = 26;
 
 function gcd(a, b) {
   while (b) { [a, b] = [b, a % b]; }
@@ -8,7 +12,9 @@ function gcd(a, b) {
 }
 
 export function calcRotations(playerCount, maxGameMinutes = 120, minutesPerGame = 10, transitionMinutes = 0, minGamesPerPlayer = 0) {
-  const effectiveMin = Math.max(minGamesPerPlayer, MIN_GAMES_PER_PLAYER);
+  const effectiveMin = playerCount >= LARGE_GROUP_THRESHOLD
+    ? minGamesPerPlayer
+    : Math.max(minGamesPerPlayer, MIN_GAMES_PER_PLAYER);
   const minGames = playerCount > 0 ? Math.ceil(playerCount * effectiveMin / PLAYERS_PER_GAME) : 1;
 
   let totalGames = minGames;
@@ -25,7 +31,10 @@ export function calcRotations(playerCount, maxGameMinutes = 120, minutesPerGame 
 
   totalGames = Math.max(totalGames, minGames);
   const playTime = availablePlay(totalGames);
-  adjustedMinutesPerGame = Math.max(Math.floor(playTime / totalGames), 1);
+  // Keep rotations at the requested duration. Only shrink below it when a forced
+  // minimum number of games can't otherwise fit the available time — never stretch
+  // past it just to consume leftover time (that turned a requested 12 min into 13).
+  adjustedMinutesPerGame = Math.max(Math.min(minutesPerGame, Math.floor(playTime / totalGames)), 1);
 
   const totalSlots = totalGames * PLAYERS_PER_GAME;
   const minPlays = Math.floor(totalSlots / playerCount);
