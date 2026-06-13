@@ -247,7 +247,8 @@
       "PowerShell($env:NODE_OPTIONS = \"--use-system-ca\"; & \"$PWD\\\\android\\\\gradlew.bat\" -p android assembleRelease --no-daemon)",
       "PowerShell($env:NODE_OPTIONS=\"--use-system-ca\"; & .\\\\android\\\\gradlew.bat -p android assembleRelease --console=plain 2>&1 | Out-String)",
       "PowerShell(eas build:view *)",
-      "Bash(\"E:/Android Studio/jbr/bin/java.exe\" -version)"
+      "Bash(\"E:/Android Studio/jbr/bin/java.exe\" -version)",
+      "Bash(sort -t: -k2 -n -r)"
     ]
   }
 }

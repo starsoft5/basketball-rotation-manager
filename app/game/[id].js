@@ -1389,7 +1389,7 @@ export default function GameScreen() {
                             style={s.pBtnWarn}
                             onPress={() => handleMarkNotPlaying(player)}
                           >
-                            <Text style={s.pBtnText}>Sit</Text>
+                            <Text style={s.pBtnText}>Bench</Text>
                           </TouchableOpacity>
                         ) : (
                           <TouchableOpacity
