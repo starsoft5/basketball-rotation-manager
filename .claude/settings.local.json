@@ -248,7 +248,9 @@
       "PowerShell($env:NODE_OPTIONS=\"--use-system-ca\"; & .\\\\android\\\\gradlew.bat -p android assembleRelease --console=plain 2>&1 | Out-String)",
       "PowerShell(eas build:view *)",
       "Bash(\"E:/Android Studio/jbr/bin/java.exe\" -version)",
-      "Bash(sort -t: -k2 -n -r)"
+      "Bash(sort -t: -k2 -n -r)",
+      "PowerShell(Get-Content -LiteralPath \"E:\\\\basketball-rotation-manager\\\\android\\\\build-release.log\" -Tail 4; \"---APK---\"; Get-Item -LiteralPath \"E:\\\\basketball-rotation-manager\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" | Select-Object @{n='SizeMB';e={[math]::Round\\($_.Length/1MB,1\\)}}, LastWriteTime, FullName | Format-List)",
+      "PowerShell(Get-Content -LiteralPath \"E:\\\\basketball-rotation-manager\\\\android\\\\build-release.log\" -Tail 3; \"---APK---\"; Get-Item -LiteralPath \"E:\\\\basketball-rotation-manager\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk\" | Select-Object @{n='SizeMB';e={[math]::Round\\($_.Length/1MB,1\\)}}, LastWriteTime, FullName | Format-List)"
     ]
   }
 }

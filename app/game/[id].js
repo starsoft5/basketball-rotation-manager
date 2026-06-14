@@ -14,9 +14,10 @@ import {
   Vibration,
   Platform,
   Animated,
+  useWindowDimensions,
 } from "react-native";
 import * as Haptics from "expo-haptics";
-import ReAnimated, { FadeInDown, FadeInUp, SlideInLeft, SlideInRight, ZoomIn, FadeIn } from "react-native-reanimated";
+import ReAnimated, { FadeInDown, FadeInUp, SlideInRight, ZoomIn, FadeIn } from "react-native-reanimated";
 import AnimatedButton from "../../components/AnimatedButton";
 import ConfettiAnimation from "../../components/ConfettiAnimation";
 import RotationFlash from "../../components/RotationFlash";
@@ -24,6 +25,7 @@ import BumpText from "../../components/BumpText";
 import Pulse from "../../components/Pulse";
 import ProgressShimmer from "../../components/ProgressShimmer";
 import CountdownOverlay from "../../components/CountdownOverlay";
+import UrgentEdge from "../../components/UrgentEdge";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useKeepAwake } from "expo-keep-awake";
 import * as Notifications from "expo-notifications";
@@ -62,6 +64,9 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Court-rental fees are tracked in Philippine pesos; change here if needed.
+const CURRENCY = "₱";
+
 async function setupNotificationChannel() {
   if (Platform.OS === "android") {
     await Notifications.setNotificationChannelAsync("rotation-timer", {
@@ -96,6 +101,11 @@ export default function GameScreen() {
   const { id, firstRotation } = useLocalSearchParams();
   const gameId = parseInt(id, 10);
 
+  // Responsive: on tablets / landscape, keep content in a centered column
+  // rather than stretching edge to edge.
+  const { width: winW } = useWindowDimensions();
+  const isWide = winW >= 700;
+
   const [gameData, setGameData] = useState(null);
   const [currentRotation, setCurrentRotation] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(600);
@@ -110,6 +120,11 @@ export default function GameScreen() {
   const [breakTime, setBreakTime] = useState(0);
   const [endTimeWarning, setEndTimeWarning] = useState(false);
   const [endTimeReached, setEndTimeReached] = useState(false);
+  // "Ends At" display steps down 1 minute at each rotation buzzer rather than
+  // ticking continuously: these hold the frozen end clock + remaining minutes
+  // shown during play, decremented once per completed rotation.
+  const [endsAtClockMs, setEndsAtClockMs] = useState(null);
+  const [endsAtMin, setEndsAtMin] = useState(null);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [editEndHour, setEditEndHour] = useState("10");
   const [editEndMinute, setEditEndMinute] = useState("00");
@@ -122,6 +137,7 @@ export default function GameScreen() {
   const [transitionExpired, setTransitionExpired] = useState(false);
   const [highlightedSubs, setHighlightedSubs] = useState([]);
   const [breakConfirmPlayer, setBreakConfirmPlayer] = useState(null);
+  const [breakAwayMode, setBreakAwayMode] = useState(null); // null | "absent" | "late"
   const [showManage, setShowManage] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState("");
   const [linkMode, setLinkMode] = useState(false);
@@ -168,8 +184,10 @@ export default function GameScreen() {
   useEffect(() => { gameEndTimeRef.current = gameEndTime; }, [gameEndTime]);
   useEffect(() => { breakTimeRef.current = breakTime; }, [breakTime]);
 
+  // Tick a 1s clock whenever the game is not finished, so the "Ends At"
+  // countdown stays live during play, breaks, and the ready state.
   useEffect(() => {
-    if (gameStatus !== "ready") return;
+    if (gameStatus === "completed") return;
     const id = setInterval(() => setClockTick(Date.now()), 1000);
     return () => clearInterval(id);
   }, [gameStatus]);
@@ -252,6 +270,10 @@ export default function GameScreen() {
     if (data.game.game_end_time && data.game.game_end_time > 0) {
       setGameEndTime(data.game.game_end_time);
       gameEndTimeRef.current = data.game.game_end_time;
+      if (data.game.status === "in_progress") {
+        setEndsAtClockMs(data.game.game_end_time);
+        setEndsAtMin(Math.max(Math.floor((data.game.game_end_time - Date.now()) / 60000), 0));
+      }
     }
 
     const transitionSecs = settings.transitionTotalSeconds || 0;
@@ -333,6 +355,11 @@ export default function GameScreen() {
     await updateGameRotation(gameId, nextRotation);
     setTimeRemaining(rotationDurationRef.current);
 
+    // "Ends At" steps down exactly 1 minute the moment the rotation timer
+    // reaches 0; it stays frozen while a rotation is playing.
+    setEndsAtMin((v) => (v == null ? v : Math.max(v - 1, 0)));
+    setEndsAtClockMs((v) => (v == null ? v : v - 60000));
+
     // #3 — buzzer flash on every rotation change.
     setFlashTrigger((n) => n + 1);
     // #8 — small confetti burst when the game passes its halfway rotation.
@@ -378,6 +405,8 @@ export default function GameScreen() {
               const newEnd = Date.now() + 15 * 60 * 1000;
               setGameEndTime(newEnd);
               gameEndTimeRef.current = newEnd;
+              setEndsAtClockMs(newEnd);
+              setEndsAtMin(Math.max(Math.floor((newEnd - Date.now()) / 60000), 0));
               setEndTimeReached(false);
               setEndTimeWarning(false);
               endTimeAlertShownRef.current = false;
@@ -489,6 +518,8 @@ export default function GameScreen() {
                   const newEnd = Date.now() + 15 * 60 * 1000;
                   setGameEndTime(newEnd);
                   gameEndTimeRef.current = newEnd;
+                  setEndsAtClockMs(newEnd);
+                  setEndsAtMin(Math.max(Math.floor((newEnd - Date.now()) / 60000), 0));
                   setEndTimeReached(false);
                   setEndTimeWarning(false);
                   endTimeAlertShownRef.current = false;
@@ -638,6 +669,8 @@ export default function GameScreen() {
   const handleEndTimeEdit = useCallback(async (newEndTimeMs) => {
     setGameEndTime(newEndTimeMs);
     gameEndTimeRef.current = newEndTimeMs;
+    setEndsAtClockMs(newEndTimeMs);
+    setEndsAtMin(Math.max(Math.floor((newEndTimeMs - Date.now()) / 60000), 0));
     try { await updateGameEndTime(gameId, newEndTimeMs); } catch (e) {}
     await adjustRotationsForEndTime();
   }, [gameId, adjustRotationsForEndTime]);
@@ -688,6 +721,8 @@ export default function GameScreen() {
       const endTime = Date.now() + playTimeMs + transitionMs;
       setGameEndTime(endTime);
       gameEndTimeRef.current = endTime;
+      setEndsAtClockMs(endTime);
+      setEndsAtMin(Math.max(Math.floor((endTime - Date.now()) / 60000), 0));
       try { await updateGameEndTime(gameId, endTime); } catch (e) {}
 
       setGameStatus("in_progress");
@@ -823,32 +858,29 @@ export default function GameScreen() {
     setSchedule(fullData.rotations);
   };
 
-  const handleBreakRemovePlayer = useCallback(async (player) => {
+  // Swap an away player out of the upcoming rotation. mode "absent" benches them
+  // for the rest of the game; mode "late" just skips them for now and keeps them
+  // eligible to be added back (via "Arrived" in Manage Players) when they show up.
+  // `substitute` is the player chosen from the recommended list, or null to play
+  // short-handed.
+  // Swap an away player out of the rotation about to start. A substitute is
+  // always chosen so the lineup stays at 10. mode "absent" benches them for the
+  // game; mode "late" keeps them eligible to be added back via "Arrived".
+  const handleBreakSwap = useCallback(async (player, mode, substitute) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    setBreakConfirmPlayer(null);
+    setBreakAwayMode(null);
+    if (!player || !substitute) return;
 
+    const status = mode === "late" ? "late" : "benched";
     const rot = currentRotationRef.current;
     const sched = scheduleRef.current;
-    const currentRot = sched[rot - 1];
-    if (!currentRot) return;
+    const targetRot = sched[rot - 1];
+    if (!targetRot) return;
 
-    const activePlayers = await getActivePlayers(gameId);
-    const inRotation = new Set(currentRot.players.map((p) => p.id));
-    const candidates = activePlayers.filter(
-      (p) => !inRotation.has(p.id) && p.id !== player.id && p.friend_group == null
-    );
-
-    if (candidates.length === 0) {
-      setBreakConfirmPlayer(null);
-      Alert.alert("Cannot Remove", "No available substitute player.");
-      return;
-    }
-
-    candidates.sort((a, b) => (a.times_played || 0) - (b.times_played || 0));
-    const substitute = candidates[0];
-
-    await removePlayerFromRotation(currentRot.id, player.id);
-    await addPlayerToRotation(currentRot.id, substitute.id);
-    await updatePlayerStatus(player.id, "benched");
+    await removePlayerFromRotation(targetRot.id, player.id);
+    await addPlayerToRotation(targetRot.id, substitute.id);
+    await updatePlayerStatus(player.id, status);
 
     setBreakModalPlayers((prev) => {
       const idx = prev.findIndex((p) => p.id === player.id);
@@ -858,14 +890,14 @@ export default function GameScreen() {
       return updated;
     });
 
-    setHighlightedSubs((prev) => [...prev, { rotationId: currentRot.id, playerId: substitute.id }]);
-    setBreakConfirmPlayer(null);
+    setHighlightedSubs((prev) => [...prev, { rotationId: targetRot.id, playerId: substitute.id }]);
 
     const midData = await getFullGameData(gameId);
     setGameData(midData);
     await regenerateFutureRotations();
 
-    Alert.alert("Substituted", `${player.name} removed.\n${substitute.name} substituted in.`);
+    const verb = mode === "late" ? "marked late" : "marked absent";
+    Alert.alert("Updated", `${player.name} ${verb}.\n${substitute.name} substituted in.`);
   }, [gameId]);
 
   const handleBenchAndSubstitute = useCallback(async (player, rotation) => {
@@ -1087,18 +1119,29 @@ export default function GameScreen() {
     const ampm = h >= 12 ? "PM" : "AM";
     h = h % 12 || 12;
     const m = String(d.getMinutes()).padStart(2, "0");
-    const sec = String(d.getSeconds()).padStart(2, "0");
-    return `${h}:${m}:${sec} ${ampm}`;
+    return `${h}:${m} ${ampm}`;
   };
-  const endTimeDisplay = (() => {
-    if (gameEndTime > 0) {
-      return formatEndTime(gameEndTime);
-    }
+  const endTargetMs = (() => {
+    if (gameEndTime > 0) return gameEndTime;
     const playMs = schedule.length * rotationDuration * 1000;
     const transMs = schedule.length * transitionSecondsRef.current * 1000 - transitionSecondsRef.current * 1000;
     const now = clockTick || Date.now();
-    return formatEndTime(now + playMs + transMs);
+    return now + playMs + transMs;
   })();
+  // While a game is in progress the "Ends At" display is frozen and steps down
+  // 1 minute per rotation buzzer (endsAtClockMs / endsAtMin). Outside play we
+  // fall back to the live projection.
+  const steppedEndsAt = gameStatus === "in_progress" && endsAtMin != null;
+  const endTimeDisplay = formatEndTime(steppedEndsAt ? endsAtClockMs : endTargetMs);
+  const minsUntilEnd = steppedEndsAt
+    ? endsAtMin
+    : Math.floor((endTargetMs - (clockTick || Date.now())) / 60000);
+  const endTimeRelative =
+    minsUntilEnd <= 0
+      ? "overtime"
+      : minsUntilEnd < 60
+        ? `in ${minsUntilEnd}m`
+        : `in ${Math.floor(minsUntilEnd / 60)}h ${minsUntilEnd % 60}m`;
   const progress =
     gameStatus === "in_progress"
       ? ((currentRotation - 1) / schedule.length) * 100 +
@@ -1127,10 +1170,24 @@ export default function GameScreen() {
     );
   }
 
+  // #1 — who is playing right now, and who comes on next, without scrolling.
+  const onCourt = schedule[currentRotation - 1]?.players || [];
+  const upNext = schedule[currentRotation]?.players || [];
+  // Players available to sub into the rotation about to start when someone is
+  // late or absent: active, not already in that rotation, not in a friend group
+  // (linked players must play together). Least-played first = best recommendation.
+  const swapRosterIds = new Set(breakModalPlayers.map((p) => p.id));
+  const availableSubs = (gameData?.players || [])
+    .filter((p) => p.status === "active" && p.friend_group == null && !swapRosterIds.has(p.id))
+    .sort((a, b) => (a.times_played || 0) - (b.times_played || 0));
+  // #4 — pulse the whole screen edge in the final seconds while running.
+  const urgentScreen = isRunning && !isOnBreak && timeRemaining <= 10 && timeRemaining > 0;
+
   return (
     <View style={s.container}>
       <View style={s.header}>
         <View style={s.headerGradient} />
+        <View style={[s.headerInner, isWide && s.centered]}>
         <Text style={s.gameName}>{gameData.game.name}</Text>
 
         <CircularTimer
@@ -1147,6 +1204,45 @@ export default function GameScreen() {
                 : `Rotation ${currentRotation} of ${schedule.length}`
           }
         />
+
+        {gameStatus === "in_progress" && onCourt.length > 0 && (
+          <View style={s.courtStrip}>
+            <View style={s.courtRow}>
+              <Text style={s.courtLabel} accessibilityRole="header">ON COURT</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={s.courtChips}
+              >
+                {onCourt.map((p) => (
+                  <View key={p.id} style={s.courtChip}>
+                    <Text style={s.courtChipText} numberOfLines={1}>
+                      {p.jersey_number != null ? `#${p.jersey_number} ` : ""}{p.name}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+            {upNext.length > 0 && (
+              <View style={s.courtRow}>
+                <Text style={[s.courtLabel, s.courtLabelNext]}>UP NEXT</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={s.courtChips}
+                >
+                  {upNext.map((p) => (
+                    <View key={p.id} style={s.courtChipNext}>
+                      <Text style={s.courtChipNextText} numberOfLines={1}>
+                        {p.jersey_number != null ? `#${p.jersey_number} ` : ""}{p.name}
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={s.progressBg}>
           <Animated.View style={[s.progressFill, { width: progressWidth, overflow: "hidden" }]}>
@@ -1172,10 +1268,10 @@ export default function GameScreen() {
               value={`${gameStatus === "completed" ? schedule.length : Math.max(currentRotation - 1, 0)}/${schedule.length}`}
             />
           </View>
-          <TouchableOpacity
+          <View
             style={s.stat}
-            onPress={gameStatus === "in_progress" ? openEndTimePicker : undefined}
-            activeOpacity={gameStatus === "in_progress" ? 0.6 : 1}
+            accessibilityRole="text"
+            accessibilityLabel={`Ends at ${endTimeDisplay}, ${endTimeRelative}`}
           >
             <Text style={s.statLabel}>🏁 Ends At</Text>
             <Text style={[
@@ -1186,13 +1282,15 @@ export default function GameScreen() {
             ]}>
               {endTimeDisplay}
             </Text>
-            {gameStatus === "in_progress" && !endTimeReached && <Text style={s.editHint}>tap to edit</Text>}
-          </TouchableOpacity>
+            {gameStatus !== "completed" && (
+              <Text style={[s.endRelative, endTimeReached && { color: "#DC2626" }]}>{endTimeRelative}</Text>
+            )}
+          </View>
         </View>
 
         <View style={s.btnRow}>
           {gameStatus === "ready" ? (
-            <AnimatedButton style={[s.btn, s.btnGreen]} onPress={handleStartGame}>
+            <AnimatedButton style={[s.btn, s.btnPrimary, s.btnGreen]} accessibilityRole="button" accessibilityLabel="Start game" onPress={handleStartGame}>
               <View style={s.btnInner}>
                 <Text style={s.btnIcon}>{"▶"}</Text>
                 <Text style={s.btnText}>Start Game</Text>
@@ -1201,7 +1299,9 @@ export default function GameScreen() {
           ) : gameStatus === "in_progress" ? (
             isOnBreak ? (
               <AnimatedButton
-                style={[s.btn, s.btnGreen]}
+                style={[s.btn, s.btnPrimary, s.btnGreen]}
+                accessibilityRole="button"
+                accessibilityLabel="Resume play"
                 onPress={endBreak}
               >
                 <View style={s.btnInner}>
@@ -1211,7 +1311,9 @@ export default function GameScreen() {
               </AnimatedButton>
             ) : (
               <AnimatedButton
-                style={[s.btn, isRunning ? s.btnRed : s.btnGreen]}
+                style={[s.btn, s.btnPrimary, isRunning ? s.btnRed : s.btnGreen]}
+                accessibilityRole="button"
+                accessibilityLabel={isRunning ? "Pause for a break" : "Resume the timer"}
                 onPress={isRunning ? startBreak : startTimer}
               >
                 <View style={s.btnInner}>
@@ -1221,7 +1323,7 @@ export default function GameScreen() {
               </AnimatedButton>
             )
           ) : (
-            <AnimatedButton style={[s.btn, s.btnGreen]} onPress={() => router.push(`/summary/${gameId}`)}>
+            <AnimatedButton style={[s.btn, s.btnPrimary, s.btnGreen]} accessibilityRole="button" accessibilityLabel="View game summary" onPress={() => router.push(`/summary/${gameId}`)}>
               <View style={s.btnInner}>
                 <Text style={s.btnIcon}>{"☰"}</Text>
                 <Text style={s.btnText}>Summary</Text>
@@ -1231,6 +1333,8 @@ export default function GameScreen() {
           {gameStatus !== "ready" && (
             <AnimatedButton
               style={[s.btn, s.btnPayment]}
+              accessibilityRole="button"
+              accessibilityLabel="Open payment tracker"
               onPress={() => setShowPayment(true)}
             >
               <View style={s.btnInner}>
@@ -1239,7 +1343,7 @@ export default function GameScreen() {
             </AnimatedButton>
           )}
           {gameStatus === "completed" && (
-            <AnimatedButton style={[s.btn, s.btnOrange]} onPress={() => router.replace("/")}>
+            <AnimatedButton style={[s.btn, s.btnOrange]} accessibilityRole="button" accessibilityLabel="Go home" onPress={() => router.replace("/")}>
               <View style={s.btnInner}>
                 <Text style={s.btnIcon}>{"⌂"}</Text>
                 <Text style={s.btnText}>Home</Text>
@@ -1249,6 +1353,8 @@ export default function GameScreen() {
           {gameStatus === "in_progress" && currentRotation < schedule.length && (
             <AnimatedButton
               style={[s.btn, s.btnSkip]}
+              accessibilityRole="button"
+              accessibilityLabel={`Skip rotation ${currentRotation}`}
               onPress={handleSkipRotation}
             >
               <View style={s.btnInner}>
@@ -1259,14 +1365,6 @@ export default function GameScreen() {
           )}
         </View>
 
-        {isOnBreak && (
-          <ReAnimated.View entering={FadeInDown.duration(300)} style={s.breakBanner}>
-            <Text style={s.breakBannerText}>BREAK — {formatTime(breakTime)}</Text>
-            <TouchableOpacity onPress={openEndTimePicker} activeOpacity={0.7}>
-              <Text style={s.breakEditEnd}>Edit End Time</Text>
-            </TouchableOpacity>
-          </ReAnimated.View>
-        )}
 
         {!isOnBreak && endTimeWarning && !endTimeReached && gameStatus === "in_progress" && (
           <ReAnimated.View entering={FadeInDown.duration(300)} style={s.warningBanner}>
@@ -1284,11 +1382,14 @@ export default function GameScreen() {
             </TouchableOpacity>
           </ReAnimated.View>
         )}
+        </View>
       </View>
 
       {(gameStatus === "ready" || gameStatus === "in_progress") && (
         <AnimatedButton
-          style={s.manageBtn}
+          style={[s.manageBtn, isWide && s.centered]}
+          accessibilityRole="button"
+          accessibilityLabel={`Manage players, ${gameData?.players?.length || 0} total`}
           onPress={() => setShowManage(true)}
         >
           <Text style={s.manageBtnText}>Manage Players ({gameData?.players?.length || 0})</Text>
@@ -1379,12 +1480,18 @@ export default function GameScreen() {
                       <Text style={s.pSub}>
                         Played: {player.times_played || 0}x
                         {inCurrent ? "  |  ON COURT" : ""}
-                        {futureCount > 0 ? `  |  ${futureCount} upcoming` : "  |  benched"}
+                        {player.status === "late"
+                          ? "  |  late"
+                          : player.status === "benched"
+                            ? "  |  absent"
+                            : futureCount > 0
+                              ? `  |  ${futureCount} upcoming`
+                              : "  |  benched"}
                       </Text>
                     </View>
                     {!linkMode && (
                       <View style={s.pActions}>
-                        {player.status !== "benched" ? (
+                        {player.status === "active" ? (
                           <TouchableOpacity
                             style={s.pBtnWarn}
                             onPress={() => handleMarkNotPlaying(player)}
@@ -1399,10 +1506,13 @@ export default function GameScreen() {
                               const freshData = await getFullGameData(gameId);
                               setGameData(freshData);
                               await regenerateFutureRotations();
-                              Alert.alert("Activated", `${player.name} added back to rotations.`);
+                              Alert.alert(
+                                player.status === "late" ? "Arrived" : "Activated",
+                                `${player.name} added back to rotations.`
+                              );
                             }}
                           >
-                            <Text style={s.pBtnText}>Activate</Text>
+                            <Text style={s.pBtnText}>{player.status === "late" ? "Arrived" : "Activate"}</Text>
                           </TouchableOpacity>
                         )}
                         {player.friend_group != null ? (
@@ -1505,44 +1615,22 @@ export default function GameScreen() {
               {breakModalPlayers.map((p, i) => {
                 const isSubHighlighted = highlightedSubs.some((h) => h.playerId === p.id);
                 return (
-                  <ReAnimated.View key={p.id} entering={SlideInLeft.delay(i * 60).duration(300).springify()}>
-                    <TouchableOpacity
-                      style={[s.breakPlayerRow, isSubHighlighted && s.breakPlayerRowHighlight]}
-                      activeOpacity={0.7}
-                      onPress={() => setBreakConfirmPlayer(p)}
-                    >
-                      <Text style={s.breakPlayerNum}>{i + 1}.</Text>
-                      <Text style={[s.breakPlayerName, isSubHighlighted && { color: "#93C5FD" }]}>{p.name}</Text>
-                      {p.jersey_number != null && (
-                        <Text style={s.breakPlayerJersey}>#{p.jersey_number}</Text>
-                      )}
-                    </TouchableOpacity>
-                  </ReAnimated.View>
+                  <TouchableOpacity
+                    key={p.id}
+                    style={[s.breakPlayerRow, isSubHighlighted && s.breakPlayerRowHighlight]}
+                    activeOpacity={0.7}
+                    onPress={() => { setBreakAwayMode(null); setBreakConfirmPlayer(p); }}
+                  >
+                    <Text style={s.breakPlayerNum}>{i + 1}.</Text>
+                    <Text style={[s.breakPlayerName, isSubHighlighted && { color: "#93C5FD" }]}>{p.name}</Text>
+                    {p.jersey_number != null && (
+                      <Text style={s.breakPlayerJersey}>#{p.jersey_number}</Text>
+                    )}
+                  </TouchableOpacity>
                 );
               })}
             </View>
 
-            <Modal visible={!!breakConfirmPlayer} animationType="fade" transparent>
-              <View style={s.etOverlay}>
-                <View style={s.confirmBox}>
-                  <Text style={s.confirmName}>{breakConfirmPlayer?.name}</Text>
-                  <View style={s.confirmBtnRow}>
-                    <TouchableOpacity
-                      style={s.confirmBtnRemove}
-                      onPress={() => handleBreakRemovePlayer(breakConfirmPlayer)}
-                    >
-                      <Text style={s.confirmBtnText}>Remove</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={s.confirmBtnCancel}
-                      onPress={() => setBreakConfirmPlayer(null)}
-                    >
-                      <Text style={s.confirmBtnText}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            </Modal>
             <AnimatedButton
               style={{
                 backgroundColor: "#16A34A",
@@ -1569,21 +1657,102 @@ export default function GameScreen() {
         </View>
       </Modal>
 
+      {/* Shared "mark away + pick a recommended substitute" picker, used both by
+          the break modal's Next Players list and the live UP NEXT strip. */}
+      <Modal visible={!!breakConfirmPlayer} animationType="fade" transparent>
+        <View style={s.etOverlay}>
+          <View style={s.confirmBox}>
+            <Text style={s.confirmName}>{breakConfirmPlayer?.name}</Text>
+            {!breakAwayMode ? (
+              <>
+                <Text style={s.confirmHint}>Not available to play?</Text>
+                <View style={s.confirmBtnRow}>
+                  <TouchableOpacity
+                    style={s.confirmBtnRemove}
+                    onPress={() => setBreakAwayMode("absent")}
+                  >
+                    <Text style={s.confirmBtnText}>Absent</Text>
+                    <Text style={s.confirmBtnSub}>out for game</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={s.confirmBtnLate}
+                    onPress={() => setBreakAwayMode("late")}
+                  >
+                    <Text style={s.confirmBtnText}>Late</Text>
+                    <Text style={s.confirmBtnSub}>skip for now</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={s.confirmBtnCancelFull}
+                  onPress={() => setBreakConfirmPlayer(null)}
+                >
+                  <Text style={s.confirmBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={s.confirmHint}>
+                  {breakAwayMode === "late" ? "Late" : "Absent"} — recommended subs for {breakConfirmPlayer?.name}
+                </Text>
+                {availableSubs.length > 0 ? (
+                  <ScrollView style={s.subPickScroll}>
+                    {availableSubs.map((sub, i) => (
+                      <TouchableOpacity
+                        key={sub.id}
+                        style={[s.subPickRow, i === 0 && s.subPickRecommended]}
+                        activeOpacity={0.7}
+                        onPress={() => handleBreakSwap(breakConfirmPlayer, breakAwayMode, sub)}
+                      >
+                        <Text style={s.subPickName}>
+                          {sub.jersey_number != null ? `#${sub.jersey_number} ` : ""}{sub.name}
+                        </Text>
+                        <Text style={s.subPickMeta}>
+                          {i === 0 ? "★ " : ""}played {sub.times_played || 0}x
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <Text style={s.subPickEmpty}>
+                    No available substitute — the lineup must stay at 10, so this player can't be removed right now.
+                  </Text>
+                )}
+                <TouchableOpacity
+                  style={s.confirmBtnCancelFull}
+                  onPress={() => setBreakAwayMode(null)}
+                >
+                  <Text style={s.confirmBtnText}>Back</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={showPayment} animationType="fade" transparent>
         <View style={s.etOverlay}>
           <View style={s.etContent}>
             <Text style={s.etTitle}>Payment</Text>
             <ScrollView style={{ maxHeight: 400 }}>
-              {gameData?.players.map((p) => (
+              {gameData?.players.map((p) => {
+                const paid = paidPlayers.has(p.id);
+                return (
                 <TouchableOpacity
                   key={p.id}
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
                     paddingVertical: 10,
+                    paddingHorizontal: 8,
+                    borderRadius: 8,
+                    marginBottom: 2,
                     borderBottomWidth: 1,
                     borderBottomColor: "#334155",
+                    backgroundColor: paid ? "rgba(22,163,74,0.12)" : "transparent",
                   }}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: paid }}
+                  accessibilityLabel={`${p.name}, ${paid ? "paid" : "not paid"}`}
                   onPress={() => {
                     setPaidPlayers((prev) => {
                       const next = new Set(prev);
@@ -1596,20 +1765,24 @@ export default function GameScreen() {
                 >
                   <View style={{
                     width: 24, height: 24, borderRadius: 6,
-                    borderWidth: 2, borderColor: paidPlayers.has(p.id) ? "#16A34A" : "#64748B",
-                    backgroundColor: paidPlayers.has(p.id) ? "#16A34A" : "transparent",
+                    borderWidth: 2, borderColor: paid ? "#16A34A" : "#64748B",
+                    backgroundColor: paid ? "#16A34A" : "transparent",
                     alignItems: "center", justifyContent: "center", marginRight: 12,
                   }}>
-                    {paidPlayers.has(p.id) && (
+                    {paid && (
                       <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "bold" }}>✓</Text>
                     )}
                   </View>
-                  <Text style={{ color: "#FFF", fontSize: 15, flex: 1 }}>{p.name}</Text>
+                  <Text style={{ color: paid ? "#4ADE80" : "#FFF", fontSize: 15, flex: 1, fontWeight: paid ? "600" : "400" }}>{p.name}</Text>
                   {p.jersey_number != null && (
-                    <Text style={{ color: "#94A3B8", fontSize: 13 }}>#{p.jersey_number}</Text>
+                    <Text style={{ color: "#94A3B8", fontSize: 13, marginRight: 10 }}>#{p.jersey_number}</Text>
                   )}
+                  <Text style={{ color: paid ? "#4ADE80" : "#64748B", fontSize: 13, fontWeight: "600" }}>
+                    {CURRENCY}{paymentAmount}
+                  </Text>
                 </TouchableOpacity>
-              ))}
+                );
+              })}
             </ScrollView>
             <View style={{
               marginTop: 16, paddingTop: 12,
@@ -1619,7 +1792,10 @@ export default function GameScreen() {
                 {paidPlayers.size} of {gameData?.players.length || 0} players paid
               </Text>
               <Text style={{ color: "#FB923C", fontSize: 22, fontWeight: "bold", marginTop: 4 }}>
-                Total: {paidPlayers.size * paymentAmount}
+                Collected: {CURRENCY}{paidPlayers.size * paymentAmount}
+                <Text style={{ color: "#64748B", fontSize: 14, fontWeight: "600" }}>
+                  {"  "}/ {CURRENCY}{(gameData?.players.length || 0) * paymentAmount}
+                </Text>
               </Text>
             </View>
             <AnimatedButton
@@ -1646,7 +1822,7 @@ export default function GameScreen() {
         data={schedule}
         keyExtractor={(item) => item.id.toString()}
         style={s.list}
-        contentContainerStyle={s.listContent}
+        contentContainerStyle={[s.listContent, isWide && s.centeredList]}
         renderItem={({ item, index }) => {
           const completed = gameStatus === "completed" || index < currentRotation - 1;
           return (
@@ -1672,6 +1848,7 @@ export default function GameScreen() {
         visible={showCountdown}
         onDone={() => { setShowCountdown(false); beginGame(); }}
       />
+      <UrgentEdge active={urgentScreen} />
     </View>
   );
 }
@@ -1699,12 +1876,14 @@ const s = StyleSheet.create({
   gameName: { color: "#94A3B8", fontSize: 13, textAlign: "center", marginBottom: 0 },
   progressBg: { width: "100%", backgroundColor: "#1E293B", height: 5, borderRadius: 3, marginBottom: 4 },
   progressFill: { backgroundColor: "#3B82F6", height: 5, borderRadius: 3 },
-  statsRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
-  stat: { alignItems: "center" },
-  statLabel: { color: "#94A3B8", fontSize: 11 },
-  statValue: { color: "#FFF", fontWeight: "bold", fontSize: 14 },
-  btnRow: { flexDirection: "row", gap: 6 },
-  btn: { flex: 1, paddingVertical: 12, borderRadius: 12 },
+  statsRow: { flexDirection: "row", justifyContent: "space-around", alignItems: "flex-start", marginTop: 2, marginBottom: 6 },
+  stat: { alignItems: "center", paddingHorizontal: 4 },
+  statLabel: { color: "#94A3B8", fontSize: 11, marginBottom: 2 },
+  statValue: { color: "#FFF", fontWeight: "bold", fontSize: 15 },
+  endRelative: { color: "#CBD5E1", fontSize: 11, fontWeight: "600", marginTop: 1 },
+  btnRow: { flexDirection: "row", gap: 6, alignItems: "stretch" },
+  btn: { flex: 1, paddingVertical: 12, borderRadius: 12, justifyContent: "center" },
+  btnPrimary: { flex: 1.8 },
   btnPayment: { backgroundColor: "#1E293B", borderWidth: 1, borderColor: "#FB923C" },
   btnSkip: { backgroundColor: "#1E293B", borderWidth: 1, borderColor: "#3B82F6" },
   btnInner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },
@@ -1793,16 +1972,6 @@ const s = StyleSheet.create({
   cancelBtnText: { color: "#94A3B8", fontWeight: "bold", fontSize: 13 },
   groupBadge: { backgroundColor: "#FB923C", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 1 },
   groupBadgeText: { color: "#FFF", fontSize: 10, fontWeight: "bold" },
-  editHint: { color: "#FB923C", fontSize: 9, marginTop: 1 },
-  breakBanner: {
-    backgroundColor: "#7F1D1D",
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  breakBannerText: { color: "#FCA5A5", fontWeight: "bold", fontSize: 15 },
   breakEditEnd: { color: "#FB923C", fontWeight: "bold", fontSize: 13 },
   warningBanner: {
     backgroundColor: "#78350F",
@@ -1912,9 +2081,79 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   confirmBtnText: { color: "#FFF", fontSize: 16, fontWeight: "bold" },
+  confirmHint: { color: "#94A3B8", fontSize: 14, marginBottom: 14, textAlign: "center" },
+  confirmBtnSub: { color: "rgba(255,255,255,0.8)", fontSize: 11, marginTop: 2 },
+  confirmBtnLate: {
+    flex: 1,
+    backgroundColor: "#D97706",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  confirmBtnCancelFull: {
+    backgroundColor: "#475569",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    width: "100%",
+    marginTop: 12,
+  },
+  subPickScroll: { maxHeight: 240, width: "100%", marginBottom: 12 },
+  subPickRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#0F172A",
+    borderWidth: 1,
+    borderColor: "#334155",
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+  },
+  subPickRecommended: { borderColor: "#16A34A", backgroundColor: "rgba(22,163,74,0.12)" },
+  subPickName: { color: "#FFF", fontSize: 16, fontWeight: "600", flex: 1 },
+  subPickMeta: { color: "#94A3B8", fontSize: 13, marginLeft: 10 },
+  subPickEmpty: { color: "#94A3B8", fontSize: 14, textAlign: "center", marginVertical: 16 },
   breakPlayerNum: { color: "#94A3B8", fontSize: 16, width: 30 },
   breakPlayerName: { color: "#FFF", fontSize: 16, fontWeight: "600", flex: 1 },
   breakPlayerJersey: { color: "#F59E0B", fontSize: 14, fontWeight: "bold" },
   list: { flex: 1 },
   listContent: { padding: 16 },
+  // #7 — centered column on tablets / landscape.
+  headerInner: { width: "100%" },
+  centered: { maxWidth: 640, alignSelf: "center", width: "100%" },
+  centeredList: { maxWidth: 640, alignSelf: "center", width: "100%" },
+  // #1 — on-court / up-next strip under the timer.
+  courtStrip: {
+    backgroundColor: "#0F172A",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  courtRow: { flexDirection: "row", alignItems: "center", minHeight: 44 },
+  courtLabel: { color: "#F97316", fontSize: 10, fontWeight: "bold", width: 64, letterSpacing: 0.5 },
+  courtLabelNext: { color: "#64748B" },
+  courtChips: { gap: 6, alignItems: "center", paddingRight: 8 },
+  courtChip: {
+    backgroundColor: "rgba(249,115,22,0.15)",
+    borderColor: "rgba(249,115,22,0.4)",
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  courtChipText: { color: "#FDBA74", fontSize: 16, fontWeight: "600" },
+  courtChipNext: {
+    backgroundColor: "rgba(148,163,184,0.12)",
+    borderColor: "rgba(148,163,184,0.35)",
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  courtChipNextText: { color: "#CBD5E1", fontSize: 16, fontWeight: "600" },
 });
