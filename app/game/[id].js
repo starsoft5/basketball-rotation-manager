@@ -21,7 +21,6 @@ import ReAnimated, { FadeInDown, FadeInUp, SlideInRight, ZoomIn, FadeIn } from "
 import AnimatedButton from "../../components/AnimatedButton";
 import ConfettiAnimation from "../../components/ConfettiAnimation";
 import RotationFlash from "../../components/RotationFlash";
-import BumpText from "../../components/BumpText";
 import Pulse from "../../components/Pulse";
 import ProgressShimmer from "../../components/ProgressShimmer";
 import CountdownOverlay from "../../components/CountdownOverlay";
@@ -1144,9 +1143,9 @@ export default function GameScreen() {
     );
   }
 
-  // #1 — who is playing right now, and who comes on next, without scrolling.
+  // #1 — who is playing right now, without scrolling. (Who's up next is the
+  // very next rotation card in the list below, so it isn't duplicated here.)
   const onCourt = schedule[currentRotation - 1]?.players || [];
-  const upNext = schedule[currentRotation]?.players || [];
   // Players available to sub into the rotation about to start when someone is
   // late or absent: active, not already in that rotation, not in a friend group
   // (linked players must play together). Least-played first = best recommendation.
@@ -1197,24 +1196,6 @@ export default function GameScreen() {
                 ))}
               </ScrollView>
             </View>
-            {upNext.length > 0 && (
-              <View style={s.courtRow}>
-                <Text style={[s.courtLabel, s.courtLabelNext]}>UP NEXT</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={s.courtChips}
-                >
-                  {upNext.map((p) => (
-                    <View key={p.id} style={s.courtChipNext}>
-                      <Text style={s.courtChipNextText} numberOfLines={1}>
-                        {p.jersey_number != null ? `#${p.jersey_number} ` : ""}{p.name}
-                      </Text>
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            )}
           </View>
         )}
 
@@ -1235,13 +1216,6 @@ export default function GameScreen() {
               <Text style={[s.statValue, { color: "#FBBF24" }]}>{formatTime(breakTime)}</Text>
             </View>
           )}
-          <View style={s.stat}>
-            <Text style={s.statLabel}>🔄 Rotations</Text>
-            <BumpText
-              style={s.statValue}
-              value={`${gameStatus === "completed" ? schedule.length : Math.max(currentRotation - 1, 0)}/${schedule.length}`}
-            />
-          </View>
           <View
             style={s.stat}
             accessibilityRole="text"
@@ -2126,7 +2100,6 @@ const s = StyleSheet.create({
   },
   courtRow: { flexDirection: "row", alignItems: "center", minHeight: 44 },
   courtLabel: { color: "#F97316", fontSize: 10, fontWeight: "bold", width: 64, letterSpacing: 0.5 },
-  courtLabelNext: { color: "#64748B" },
   courtChips: { gap: 6, alignItems: "center", paddingRight: 8 },
   courtChip: {
     backgroundColor: "rgba(249,115,22,0.15)",
@@ -2136,14 +2109,5 @@ const s = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  courtChipText: { color: "#FDBA74", fontSize: 16, fontWeight: "600" },
-  courtChipNext: {
-    backgroundColor: "rgba(148,163,184,0.12)",
-    borderColor: "rgba(148,163,184,0.35)",
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  courtChipNextText: { color: "#CBD5E1", fontSize: 16, fontWeight: "600" },
+  courtChipText: { color: "#FDBA74", fontSize: 13, fontWeight: "600" },
 });
