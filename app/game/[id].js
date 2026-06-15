@@ -120,11 +120,6 @@ export default function GameScreen() {
   const [breakTime, setBreakTime] = useState(0);
   const [endTimeWarning, setEndTimeWarning] = useState(false);
   const [endTimeReached, setEndTimeReached] = useState(false);
-  // "Ends At" display steps down 1 minute at each rotation buzzer rather than
-  // ticking continuously: these hold the frozen end clock + remaining minutes
-  // shown during play, decremented once per completed rotation.
-  const [endsAtClockMs, setEndsAtClockMs] = useState(null);
-  const [endsAtMin, setEndsAtMin] = useState(null);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [editEndHour, setEditEndHour] = useState("10");
   const [editEndMinute, setEditEndMinute] = useState("00");
@@ -270,10 +265,6 @@ export default function GameScreen() {
     if (data.game.game_end_time && data.game.game_end_time > 0) {
       setGameEndTime(data.game.game_end_time);
       gameEndTimeRef.current = data.game.game_end_time;
-      if (data.game.status === "in_progress") {
-        setEndsAtClockMs(data.game.game_end_time);
-        setEndsAtMin(Math.max(Math.floor((data.game.game_end_time - Date.now()) / 60000), 0));
-      }
     }
 
     const transitionSecs = settings.transitionTotalSeconds || 0;
@@ -355,11 +346,6 @@ export default function GameScreen() {
     await updateGameRotation(gameId, nextRotation);
     setTimeRemaining(rotationDurationRef.current);
 
-    // "Ends At" steps down exactly 1 minute the moment the rotation timer
-    // reaches 0; it stays frozen while a rotation is playing.
-    setEndsAtMin((v) => (v == null ? v : Math.max(v - 1, 0)));
-    setEndsAtClockMs((v) => (v == null ? v : v - 60000));
-
     // #3 — buzzer flash on every rotation change.
     setFlashTrigger((n) => n + 1);
     // #8 — small confetti burst when the game passes its halfway rotation.
@@ -405,8 +391,6 @@ export default function GameScreen() {
               const newEnd = Date.now() + 15 * 60 * 1000;
               setGameEndTime(newEnd);
               gameEndTimeRef.current = newEnd;
-              setEndsAtClockMs(newEnd);
-              setEndsAtMin(Math.max(Math.floor((newEnd - Date.now()) / 60000), 0));
               setEndTimeReached(false);
               setEndTimeWarning(false);
               endTimeAlertShownRef.current = false;
@@ -518,8 +502,6 @@ export default function GameScreen() {
                   const newEnd = Date.now() + 15 * 60 * 1000;
                   setGameEndTime(newEnd);
                   gameEndTimeRef.current = newEnd;
-                  setEndsAtClockMs(newEnd);
-                  setEndsAtMin(Math.max(Math.floor((newEnd - Date.now()) / 60000), 0));
                   setEndTimeReached(false);
                   setEndTimeWarning(false);
                   endTimeAlertShownRef.current = false;
@@ -669,8 +651,6 @@ export default function GameScreen() {
   const handleEndTimeEdit = useCallback(async (newEndTimeMs) => {
     setGameEndTime(newEndTimeMs);
     gameEndTimeRef.current = newEndTimeMs;
-    setEndsAtClockMs(newEndTimeMs);
-    setEndsAtMin(Math.max(Math.floor((newEndTimeMs - Date.now()) / 60000), 0));
     try { await updateGameEndTime(gameId, newEndTimeMs); } catch (e) {}
     await adjustRotationsForEndTime();
   }, [gameId, adjustRotationsForEndTime]);
@@ -721,8 +701,6 @@ export default function GameScreen() {
       const endTime = Date.now() + playTimeMs + transitionMs;
       setGameEndTime(endTime);
       gameEndTimeRef.current = endTime;
-      setEndsAtClockMs(endTime);
-      setEndsAtMin(Math.max(Math.floor((endTime - Date.now()) / 60000), 0));
       try { await updateGameEndTime(gameId, endTime); } catch (e) {}
 
       setGameStatus("in_progress");
@@ -1128,14 +1106,10 @@ export default function GameScreen() {
     const now = clockTick || Date.now();
     return now + playMs + transMs;
   })();
-  // While a game is in progress the "Ends At" display is frozen and steps down
-  // 1 minute per rotation buzzer (endsAtClockMs / endsAtMin). Outside play we
-  // fall back to the live projection.
-  const steppedEndsAt = gameStatus === "in_progress" && endsAtMin != null;
-  const endTimeDisplay = formatEndTime(steppedEndsAt ? endsAtClockMs : endTargetMs);
-  const minsUntilEnd = steppedEndsAt
-    ? endsAtMin
-    : Math.floor((endTargetMs - (clockTick || Date.now())) / 60000);
+  // "Ends At" is a live projection off the fixed game end time, recomputed each
+  // second via clockTick so the countdown ticks down minute by minute.
+  const endTimeDisplay = formatEndTime(endTargetMs);
+  const minsUntilEnd = Math.floor((endTargetMs - (clockTick || Date.now())) / 60000);
   const endTimeRelative =
     minsUntilEnd <= 0
       ? "overtime"
@@ -1615,18 +1589,25 @@ export default function GameScreen() {
               {breakModalPlayers.map((p, i) => {
                 const isSubHighlighted = highlightedSubs.some((h) => h.playerId === p.id);
                 return (
-                  <TouchableOpacity
+                  <View
                     key={p.id}
                     style={[s.breakPlayerRow, isSubHighlighted && s.breakPlayerRowHighlight]}
-                    activeOpacity={0.7}
-                    onPress={() => { setBreakAwayMode(null); setBreakConfirmPlayer(p); }}
                   >
                     <Text style={s.breakPlayerNum}>{i + 1}.</Text>
                     <Text style={[s.breakPlayerName, isSubHighlighted && { color: "#93C5FD" }]}>{p.name}</Text>
                     {p.jersey_number != null && (
                       <Text style={s.breakPlayerJersey}>#{p.jersey_number}</Text>
                     )}
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      style={s.breakPlayerAwayBtn}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Mark ${p.name} absent or late`}
+                      onPress={() => { setBreakAwayMode(null); setBreakConfirmPlayer(p); }}
+                    >
+                      <Text style={s.breakPlayerAwayBtnText}>Absent / Late</Text>
+                    </TouchableOpacity>
+                  </View>
                 );
               })}
             </View>
@@ -2117,7 +2098,16 @@ const s = StyleSheet.create({
   subPickEmpty: { color: "#94A3B8", fontSize: 14, textAlign: "center", marginVertical: 16 },
   breakPlayerNum: { color: "#94A3B8", fontSize: 16, width: 30 },
   breakPlayerName: { color: "#FFF", fontSize: 16, fontWeight: "600", flex: 1 },
-  breakPlayerJersey: { color: "#F59E0B", fontSize: 14, fontWeight: "bold" },
+  breakPlayerJersey: { color: "#F59E0B", fontSize: 14, fontWeight: "bold", marginRight: 10 },
+  breakPlayerAwayBtn: {
+    backgroundColor: "#1E293B",
+    borderWidth: 1,
+    borderColor: "#D97706",
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  breakPlayerAwayBtnText: { color: "#FBBF24", fontSize: 12, fontWeight: "bold" },
   list: { flex: 1 },
   listContent: { padding: 16 },
   // #7 — centered column on tablets / landscape.

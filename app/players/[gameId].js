@@ -259,6 +259,29 @@ export default function PlayerEntryScreen() {
     ]);
   };
 
+  const handleClearAll = () => {
+    if (players.length === 0) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    Alert.alert(
+      "Clear All Players",
+      `Remove all ${players.length} player${players.length !== 1 ? "s" : ""} from the list?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear All",
+          style: "destructive",
+          onPress: async () => {
+            for (const p of players) {
+              await deletePlayer(p.id);
+            }
+            setSelectedIds(new Set());
+            await loadPlayers();
+          },
+        },
+      ]
+    );
+  };
+
   const toggleSelect = (playerId) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -376,6 +399,9 @@ export default function PlayerEntryScreen() {
             <View style={s.sectionLine} />
             <Text style={s.sectionLabel}>ROSTER</Text>
             <View style={s.sectionLine} />
+            <AnimatedButton style={s.clearBtn} onPress={handleClearAll}>
+              <Text style={s.clearBtnText}>Clear All</Text>
+            </AnimatedButton>
           </Animated.View>
         )}
 
@@ -585,6 +611,21 @@ const s = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 1.5,
     marginHorizontal: 12,
+  },
+  clearBtn: {
+    marginLeft: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#DC2626",
+    backgroundColor: "rgba(220,38,38,0.12)",
+  },
+  clearBtnText: {
+    color: "#F87171",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
   },
 
   // Player Row
