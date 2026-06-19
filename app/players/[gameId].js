@@ -30,6 +30,7 @@ import Animated, {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { addPlayer, getPlayers, updateGameStatus, deletePlayer, getSettings } from "../../db/database";
 import AnimatedButton from "../../components/AnimatedButton";
+import BouncingBall from "../../components/BouncingBall";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -408,7 +409,7 @@ export default function PlayerEntryScreen() {
         {/* Player List */}
         {players.length === 0 ? (
           <Animated.View entering={FadeIn.duration(500).delay(300)} style={s.emptyWrap}>
-            <Text style={s.emptyIcon}>🏀</Text>
+            <BouncingBall size={40} mode="idle" style={{ marginBottom: 12 }} />
             <Text style={s.emptyTitle}>No players yet</Text>
             <Text style={s.emptyText}>Type a name above or scan a list to add players</Text>
           </Animated.View>

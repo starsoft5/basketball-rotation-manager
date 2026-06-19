@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, BackHandler } from "react-native";
+import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { getSettings } from "../db/database";
@@ -59,15 +59,6 @@ export default function HomeScreen() {
           onPress={() => router.push("/share")}
         >
           <Text style={s.secondaryBtnText}>📲 Share to Another Device</Text>
-        </AnimatedButton>
-      </Animated.View>
-
-      <Animated.View entering={FadeInDown.duration(400).delay(440)} style={s.fullWidth}>
-        <AnimatedButton
-          style={[s.secondaryBtn, s.quitBtn]}
-          onPress={() => BackHandler.exitApp()}
-        >
-          <Text style={s.quitBtnText}>Quit</Text>
         </AnimatedButton>
       </Animated.View>
 
@@ -146,16 +137,6 @@ const s = StyleSheet.create({
   shareBtn: {
     marginTop: 12,
     borderColor: "#F97316",
-  },
-  quitBtn: {
-    marginTop: 12,
-    borderColor: "#EF4444",
-  },
-  quitBtnText: {
-    color: "#EF4444",
-    textAlign: "center",
-    fontSize: 20,
-    fontWeight: "bold",
   },
   infoCard: {
     marginTop: 12,

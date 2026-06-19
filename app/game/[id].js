@@ -17,9 +17,11 @@ import {
   useWindowDimensions,
 } from "react-native";
 import * as Haptics from "expo-haptics";
-import ReAnimated, { FadeInDown, FadeInUp, SlideInRight, ZoomIn, FadeIn } from "react-native-reanimated";
+import ReAnimated, { FadeInDown, FadeInUp, SlideInRight, ZoomIn, FadeIn, FadeOut, Layout } from "react-native-reanimated";
 import AnimatedButton from "../../components/AnimatedButton";
 import ConfettiAnimation from "../../components/ConfettiAnimation";
+import BouncingBall from "../../components/BouncingBall";
+import BumpText from "../../components/BumpText";
 import RotationFlash from "../../components/RotationFlash";
 import Pulse from "../../components/Pulse";
 import ProgressShimmer from "../../components/ProgressShimmer";
@@ -53,7 +55,7 @@ import {
 import { generateSchedule, generateScheduleEqualTime, calcRotations, calcRotationsEqualTime, formatTime } from "../../utils/scheduler";
 import RotationCard from "../../components/RotationCard";
 import CircularTimer from "../../components/CircularTimer";
-import { scheduleAlarm, cancelAlarm, bringToFront, canOverlay, openOverlaySettings, speak, isIgnoringBatteryOptimizations, requestIgnoreBatteryOptimizations } from "../../modules/bring-to-front";
+import { scheduleAlarm, cancelAlarm, bringToFront, canOverlay, openOverlaySettings, speak, beepFinal, isIgnoringBatteryOptimizations, requestIgnoreBatteryOptimizations } from "../../modules/bring-to-front";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -164,6 +166,7 @@ export default function GameScreen() {
   const breakAccumulatedRef = useRef(0);
   const endTimeAlertShownRef = useRef(false);
   const startTimerRef = useRef(null);
+  const autoStartedRef = useRef(false);
   const transitionTimerRef = useRef(null);
   const transitionSecondsRef = useRef(0);
   const lastCountdownRef = useRef(0);
@@ -227,6 +230,10 @@ export default function GameScreen() {
           setTimeRemaining(0);
           setIsRunning(false);
           cancelRotationAlert();
+          // The JS interval is throttled while backgrounded, so the remaining<=0
+          // branch in startTimer may never have fired — sound the horn here too
+          // (when we resume to find the timer already expired) before advancing.
+          beepFinal().catch(() => {});
           handleRotationEnd();
         } else {
           setTimeRemaining(remaining);
@@ -292,6 +299,13 @@ export default function GameScreen() {
       setSchedule(data.rotations);
       setCurrentRotation(data.game.current_rotation);
       setGameStatus(data.game.status);
+      // Reopening a LIVE game: auto-start the current rotation (at full time)
+      // so the clock is running immediately instead of sitting paused at 10:00.
+      // Deferred so the timeRemaining/duration state above is committed first.
+      if (data.game.status === "in_progress" && !autoStartedRef.current) {
+        autoStartedRef.current = true;
+        setTimeout(() => { startTimerRef.current && startTimerRef.current(); }, 0);
+      }
     } else {
       const firstRotationIds = firstRotation ? firstRotation.split(",").map(Number) : null;
       const newSchedule = mode === "equal_time"
@@ -537,7 +551,9 @@ export default function GameScreen() {
         setIsRunning(false);
         cancelRotationAlert();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-        speak("Time is up").catch(() => {});
+        // Sound the buzzer (same as the old Test Horn) the moment the rotation
+        // timer hits 0, before handleRotationEnd() opens the next-rotation modal.
+        beepFinal().catch(() => {});
         handleRotationEnd();
       } else {
         setTimeRemaining(remaining);
@@ -1105,20 +1121,35 @@ export default function GameScreen() {
     const now = clockTick || Date.now();
     return now + playMs + transMs;
   })();
-  // "Ends At" is a live projection off the fixed game end time, recomputed each
-  // second via clockTick so the countdown ticks down minute by minute.
   const endTimeDisplay = formatEndTime(endTargetMs);
-  const minsUntilEnd = Math.floor((endTargetMs - (clockTick || Date.now())) / 60000);
-  const endTimeRelative =
-    minsUntilEnd <= 0
-      ? "overtime"
-      : minsUntilEnd < 60
-        ? `in ${minsUntilEnd}m`
-        : `in ${Math.floor(minsUntilEnd / 60)}h ${minsUntilEnd % 60}m`;
-  const progress =
+  // "Ends At" relative time tracks the ROTATION TIMER, not the wall clock: it is
+  // the remaining game play time = time left in the current rotation + every
+  // rotation still to come (plus their transitions). The seconds are disregarded
+  // (truncated, not rounded up), so {x} deducts by exactly 1 each time the
+  // rotation timer counts down a full minute, holds steady while paused / on
+  // break, and shows "in <1m" in the final under-a-minute stretch. Outside live
+  // play it falls back to the projected time-until-end off the wall clock.
+  const transSecsForEnd = transitionSecondsRef.current || 0;
+  const rotationsAfterCurrent = Math.max(schedule.length - currentRotation, 0);
+  const remainingPlaySec =
     gameStatus === "in_progress"
-      ? ((currentRotation - 1) / schedule.length) * 100 +
-        ((rotationDuration - timeRemaining) / rotationDuration / schedule.length) * 100
+      ? Math.max(timeRemaining, 0) + rotationsAfterCurrent * (rotationDuration + transSecsForEnd)
+      : Math.max((endTargetMs - (clockTick || Date.now())) / 1000, 0);
+  const totalSecsUntilEnd = Math.max(0, Math.floor(remainingPlaySec));
+  const minsUntilEnd = Math.floor(totalSecsUntilEnd / 60);
+  const endTimeRelative =
+    totalSecsUntilEnd <= 0
+      ? "overtime"
+      : minsUntilEnd === 0
+        ? "in <1m"
+        : minsUntilEnd < 60
+          ? `in ${minsUntilEnd}m`
+          : `in ${Math.floor(minsUntilEnd / 60)}h ${minsUntilEnd % 60}m`;
+  // Progress reflects the CURRENT rotation only: it fills 0→100% as the
+  // rotation's timer counts down, then resets when the next rotation begins.
+  const progress =
+    gameStatus === "in_progress" && rotationDuration > 0
+      ? ((rotationDuration - timeRemaining) / rotationDuration) * 100
       : gameStatus === "completed" ? 100 : 0;
 
   useEffect(() => {
@@ -1138,6 +1169,7 @@ export default function GameScreen() {
   if (!gameData || schedule.length === 0) {
     return (
       <View style={s.loadingWrap}>
+        <BouncingBall size={56} mode="bounce" style={{ marginBottom: 16 }} />
         <Text style={s.loadingText}>Loading game...</Text>
       </View>
     );
@@ -1187,12 +1219,18 @@ export default function GameScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={s.courtChips}
               >
-                {onCourt.map((p) => (
-                  <View key={p.id} style={s.courtChip}>
+                {onCourt.map((p, i) => (
+                  <ReAnimated.View
+                    key={p.id}
+                    entering={SlideInRight.delay(i * 35).duration(300)}
+                    exiting={FadeOut.duration(200)}
+                    layout={Layout.springify().damping(16)}
+                    style={s.courtChip}
+                  >
                     <Text style={s.courtChipText} numberOfLines={1}>
                       {p.jersey_number != null ? `#${p.jersey_number} ` : ""}{p.name}
                     </Text>
-                  </View>
+                  </ReAnimated.View>
                 ))}
               </ScrollView>
             </View>
@@ -1404,7 +1442,12 @@ export default function GameScreen() {
                 const groupLabel = player.friend_group != null ? `G${player.friend_group}` : null;
 
                 return (
-                  <ReAnimated.View key={player.id} entering={FadeInDown.delay(pIdx * 40).duration(250)}>
+                  <ReAnimated.View
+                    key={player.id}
+                    entering={FadeInDown.delay(pIdx * 40).duration(250)}
+                    exiting={FadeOut.duration(200)}
+                    layout={Layout.springify().damping(16)}
+                  >
                   <TouchableOpacity
                     style={[s.pRow, isSelected && s.pRowSelected, groupLabel && s.pRowLinked]}
                     onPress={linkMode ? () => {
@@ -1563,8 +1606,14 @@ export default function GameScreen() {
               {breakModalPlayers.map((p, i) => {
                 const isSubHighlighted = highlightedSubs.some((h) => h.playerId === p.id);
                 return (
-                  <View
+                  <ReAnimated.View
                     key={p.id}
+                    // #1 — when a player is swapped (Absent/Late), the substitute
+                    // is a new key here: it springs in while the outgoing row
+                    // fades out, and the rest reflow.
+                    entering={isSubHighlighted ? ZoomIn.springify().damping(12) : FadeIn.duration(250)}
+                    exiting={FadeOut.duration(180)}
+                    layout={Layout.springify().damping(16)}
                     style={[s.breakPlayerRow, isSubHighlighted && s.breakPlayerRowHighlight]}
                   >
                     <Text style={s.breakPlayerNum}>{i + 1}.</Text>
@@ -1581,7 +1630,7 @@ export default function GameScreen() {
                     >
                       <Text style={s.breakPlayerAwayBtnText}>Absent / Late</Text>
                     </TouchableOpacity>
-                  </View>
+                  </ReAnimated.View>
                 );
               })}
             </View>
@@ -1725,7 +1774,12 @@ export default function GameScreen() {
                     alignItems: "center", justifyContent: "center", marginRight: 12,
                   }}>
                     {paid && (
-                      <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "bold" }}>✓</Text>
+                      <ReAnimated.Text
+                        entering={ZoomIn.springify().damping(10)}
+                        style={{ color: "#FFF", fontSize: 14, fontWeight: "bold" }}
+                      >
+                        ✓
+                      </ReAnimated.Text>
                     )}
                   </View>
                   <Text style={{ color: paid ? "#4ADE80" : "#FFF", fontSize: 15, flex: 1, fontWeight: paid ? "600" : "400" }}>{p.name}</Text>
@@ -1746,12 +1800,16 @@ export default function GameScreen() {
               <Text style={{ color: "#94A3B8", fontSize: 13 }}>
                 {paidPlayers.size} of {gameData?.players.length || 0} players paid
               </Text>
-              <Text style={{ color: "#FB923C", fontSize: 22, fontWeight: "bold", marginTop: 4 }}>
-                Collected: {CURRENCY}{paidPlayers.size * paymentAmount}
+              <View style={{ flexDirection: "row", alignItems: "baseline", marginTop: 4 }}>
+                <Text style={{ color: "#FB923C", fontSize: 22, fontWeight: "bold" }}>Collected: </Text>
+                <BumpText
+                  value={`${CURRENCY}${paidPlayers.size * paymentAmount}`}
+                  style={{ color: "#FB923C", fontSize: 22, fontWeight: "bold" }}
+                />
                 <Text style={{ color: "#64748B", fontSize: 14, fontWeight: "600" }}>
                   {"  "}/ {CURRENCY}{(gameData?.players.length || 0) * paymentAmount}
                 </Text>
-              </Text>
+              </View>
             </View>
             <AnimatedButton
               style={{
@@ -2092,13 +2150,13 @@ const s = StyleSheet.create({
   courtStrip: {
     backgroundColor: "#0F172A",
     borderRadius: 12,
-    paddingVertical: 8,
+    paddingVertical: 4,
     paddingHorizontal: 10,
     marginBottom: 6,
     borderWidth: 1,
     borderColor: "#334155",
   },
-  courtRow: { flexDirection: "row", alignItems: "center", minHeight: 44 },
+  courtRow: { flexDirection: "row", alignItems: "center", minHeight: 28 },
   courtLabel: { color: "#F97316", fontSize: 10, fontWeight: "bold", width: 64, letterSpacing: 0.5 },
   courtChips: { gap: 6, alignItems: "center", paddingRight: 8 },
   courtChip: {
@@ -2107,7 +2165,7 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 999,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
-  courtChipText: { color: "#FDBA74", fontSize: 13, fontWeight: "600" },
+  courtChipText: { color: "#FDBA74", fontSize: 11, fontWeight: "600" },
 });

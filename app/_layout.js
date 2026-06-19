@@ -74,7 +74,7 @@ function ExpiredScreen() {
       <Text style={s.expiredEmoji}>⏰</Text>
       <Text style={s.expiredTitle}>Trial Expired</Text>
       <Text style={s.expiredText}>
-        Your 14-day trial has ended.{"\n"}Thank you for trying Basketball Rotation!
+        Your 30-day trial has ended.{"\n"}Thank you for trying Basketball Rotation!
       </Text>
     </View>
   );
@@ -124,7 +124,10 @@ export default function RootLayout() {
           animation: "slide_from_right",
           contentStyle: { backgroundColor: "#0F172A" },
         }}
-      />
+      >
+        {/* #8 — the post-game recap rises up as a "reveal" instead of sliding in. */}
+        <Stack.Screen name="summary/[gameId]" options={{ animation: "slide_from_bottom" }} />
+      </Stack>
     </View>
   );
 }

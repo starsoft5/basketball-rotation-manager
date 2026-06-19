@@ -13,7 +13,7 @@ async function shareApp(setSharing) {
   try {
     const license = await checkLicense();
     if (!license.valid) {
-      Alert.alert("Trial Expired", "Your 14-day trial has ended. Sharing is no longer available.");
+      Alert.alert("Trial Expired", "Your 30-day trial has ended. Sharing is no longer available.");
       setSharing(false);
       return;
     }

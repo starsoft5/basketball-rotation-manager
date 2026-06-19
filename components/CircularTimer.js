@@ -12,7 +12,6 @@ import Animated, {
   interpolateColor,
   Easing,
 } from "react-native-reanimated";
-import OdometerTime from "./OdometerTime";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -21,7 +20,6 @@ const STROKE_WIDTH = 8;
 const RADIUS = (SIZE - STROKE_WIDTH) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 const CENTER = SIZE / 2;
-const COLOR_RAMP_SECONDS = 30;
 
 export default function CircularTimer({
   timeRemaining,
@@ -33,22 +31,14 @@ export default function CircularTimer({
 }) {
   const progress = totalDuration > 0 ? Math.max(0, Math.min(1, timeRemaining / totalDuration)) : 1;
   const urgent = timeRemaining <= 10 && timeRemaining > 0;
+  // #3 — a softer pre-warning beat in the 11-20s window before the urgent heartbeat.
+  const warnPulse = timeRemaining <= 20 && timeRemaining > 10;
 
   // #2 — smoothly sweep the ring toward each new per-second target.
   const animatedProgress = useSharedValue(progress);
   useEffect(() => {
     animatedProgress.value = withTiming(progress, { duration: 950, easing: Easing.linear });
   }, [progress]);
-
-  // #1 — gradually shift orange -> red across the final stretch instead of a
-  // hard switch. colorT 0 = orange, 1 = red.
-  const colorT = useSharedValue(0);
-  useEffect(() => {
-    let target = 0;
-    if (timeRemaining <= 0) target = 1;
-    else if (timeRemaining <= COLOR_RAMP_SECONDS) target = (COLOR_RAMP_SECONDS - timeRemaining) / COLOR_RAMP_SECONDS;
-    colorT.value = withTiming(target, { duration: 950, easing: Easing.linear });
-  }, [timeRemaining]);
 
   // #6 — blend the ring toward amber while on break. breakT 0 = normal, 1 = break.
   const breakT = useSharedValue(onBreak ? 1 : 0);
@@ -57,7 +47,14 @@ export default function CircularTimer({
   }, [onBreak]);
 
   const ringProps = useAnimatedProps(() => {
-    const gradient = interpolateColor(colorT.value, [0, 1], ["#F97316", "#EF4444"]);
+    // #3 — full-journey urgency color: green (plenty of time) -> orange -> red
+    // (critical), driven by how much of the ring is left. Sweeps smoothly with
+    // the ring because it reads the same animated fill value.
+    const gradient = interpolateColor(
+      animatedProgress.value,
+      [0, 0.15, 0.45],
+      ["#EF4444", "#F97316", "#22C55E"]
+    );
     const stroke = interpolateColor(breakT.value, [0, 1], [gradient, "#FBBF24"]);
     return {
       strokeDashoffset: CIRCUMFERENCE * (1 - animatedProgress.value),
@@ -84,11 +81,21 @@ export default function CircularTimer({
         -1,
         false
       );
+    } else if (warnPulse && running) {
+      // #3 — gentler, slower pre-warning beat that escalates into the urgent one.
+      pulse.value = withRepeat(
+        withSequence(
+          withTiming(1.05, { duration: 500, easing: Easing.out(Easing.quad) }),
+          withTiming(1, { duration: 500, easing: Easing.in(Easing.quad) })
+        ),
+        -1,
+        false
+      );
     } else {
       cancelAnimation(pulse);
       pulse.value = withTiming(1, { duration: 150 });
     }
-  }, [urgent, running, onBreak]);
+  }, [urgent, warnPulse, running, onBreak]);
 
   const pulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
@@ -123,7 +130,12 @@ export default function CircularTimer({
         />
       </Svg>
       <Animated.View style={[s.textWrap, pulseStyle]}>
-        <OdometerTime time={formattedTime} fontSize={44} color={numberColor} />
+        <Text
+          allowFontScaling={false}
+          style={[s.timeText, { color: numberColor }]}
+        >
+          {formattedTime}
+        </Text>
         <Text style={s.subtitle}>{subtitle}</Text>
       </Animated.View>
     </View>
@@ -145,6 +157,13 @@ const s = StyleSheet.create({
     height: SIZE,
     alignItems: "center",
     justifyContent: "center",
+  },
+  timeText: {
+    fontSize: 44,
+    fontWeight: "bold",
+    fontVariant: ["tabular-nums"],
+    includeFontPadding: false,
+    textAlign: "center",
   },
   subtitle: {
     color: "#94A3B8",

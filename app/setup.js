@@ -189,6 +189,7 @@ export default function SetupScreen() {
           <Animated.View entering={ZoomIn.duration(300).delay(120).springify()}>
             <AnimatedButton onPress={handleOpenSettings} style={s.settingsBtn}>
               <Text style={s.settingsIcon}>⚙️</Text>
+              <Text style={s.settingsBtnLabel}>Settings</Text>
             </AnimatedButton>
           </Animated.View>
         </Animated.View>
@@ -413,8 +414,9 @@ const s = StyleSheet.create({
     color: "#FFF",
   },
   settingsBtn: {
-    width: 40,
-    height: 40,
+    minWidth: 56,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
     borderRadius: 12,
     backgroundColor: "#1E293B",
     alignItems: "center",
@@ -423,6 +425,7 @@ const s = StyleSheet.create({
     borderColor: "#475569",
   },
   settingsIcon: { fontSize: 20 },
+  settingsBtnLabel: { color: "#CBD5E1", fontSize: 11, fontWeight: "600", marginTop: 2 },
   field: { marginBottom: 24 },
   label: { color: "#CBD5E1", fontSize: 15, marginBottom: 8, fontWeight: "600" },
   input: {

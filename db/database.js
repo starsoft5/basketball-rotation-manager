@@ -239,7 +239,8 @@ export async function getAllGames() {
   const database = await getDatabase();
   return await database.getAllAsync(
     `SELECT g.*,
-            (SELECT COUNT(*) FROM players p WHERE p.game_id = g.id) AS total_players
+            (SELECT COUNT(*) FROM players p WHERE p.game_id = g.id) AS total_players,
+            (SELECT COUNT(*) FROM rotations r WHERE r.game_id = g.id) AS total_rotations
      FROM games g
      ORDER BY g.created_at DESC`
   );

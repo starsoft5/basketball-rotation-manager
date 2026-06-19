@@ -10,8 +10,11 @@ import Animated, {
 const DIGITS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 // #2 — a single rolling digit. The 0-9 column slides vertically so each tick
-// rolls the digit like an odometer/flip clock.
-function Digit({ digit, fontSize, color, height }) {
+// rolls the digit like an odometer/flip clock. Width is fixed so columns line
+// up regardless of per-glyph metrics, and font scaling is disabled so the OS
+// accessibility/display-zoom setting on other devices can't desync the glyph
+// size from the `height`-based roll math (which would overlap the digits).
+function Digit({ digit, fontSize, color, height, width }) {
   const offset = useSharedValue(-digit * height);
 
   useEffect(() => {
@@ -26,18 +29,22 @@ function Digit({ digit, fontSize, color, height }) {
   }));
 
   return (
-    <View style={{ height, overflow: "hidden" }}>
+    <View style={{ height, width, overflow: "hidden" }}>
       <Animated.View style={style}>
         {DIGITS.map((n) => (
           <Text
             key={n}
+            allowFontScaling={false}
             style={{
               fontSize,
               lineHeight: height,
               color,
               fontWeight: "bold",
-              letterSpacing: 2,
+              width,
+              height,
               textAlign: "center",
+              textAlignVertical: "center",
+              includeFontPadding: false,
             }}
           >
             {n}
@@ -52,6 +59,7 @@ function Digit({ digit, fontSize, color, height }) {
 // static. Assumes constant-width padded time (e.g. "09:59").
 export default function OdometerTime({ time, fontSize = 44, color = "#FFF" }) {
   const height = Math.round(fontSize * 1.15);
+  const digitWidth = Math.round(fontSize * 0.62);
 
   return (
     <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -64,18 +72,24 @@ export default function OdometerTime({ time, fontSize = 44, color = "#FFF" }) {
               fontSize={fontSize}
               color={color}
               height={height}
+              width={digitWidth}
             />
           );
         }
         return (
           <Text
             key={i}
+            allowFontScaling={false}
             style={{
               fontSize,
               lineHeight: height,
+              height,
               color,
               fontWeight: "bold",
-              letterSpacing: 2,
+              textAlign: "center",
+              textAlignVertical: "center",
+              includeFontPadding: false,
+              paddingHorizontal: Math.round(fontSize * 0.04),
             }}
           >
             {ch}

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="720" viewBox="0 0 560 720">
+  <rect width="560" height="720" fill="#0F172A"/>
+  <!-- nav header -->
+  <rect x="0" y="0" width="560" height="92" fill="#1E293B"/>
+  <text x="16" y="48" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="600" fill="#FB923C">&#8592; Back</text>
+  <text x="16" y="76" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="bold" fill="#FB923C">Game History</text>
+  <rect x="24" y="108" width="512" height="82" rx="16" fill="#1E293B" stroke="#334155" stroke-width="1"/>
+  <text x="40" y="139" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF">Saturday Pickup</text>
+  <rect x="427" y="123" width="93" height="20" rx="10" fill="#F97316"/>
+  <text x="473.5" y="137" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="bold" fill="#FFFFFF">IN PROGRESS</text>
+  <text x="40" y="163" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#94A3B8">12 players</text>
+  <text x="126" y="163" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#94A3B8">Rotation 5/12</text>
+  <text x="233" y="163" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#64748B">2026-06-19 18:30</text>
+  <rect x="24" y="202" width="512" height="82" rx="16" fill="#1E293B" stroke="#334155" stroke-width="1"/>
+  <text x="40" y="233" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF">Tuesday Night Run</text>
+  <rect x="441" y="217" width="79" height="20" rx="10" fill="#15803D"/>
+  <text x="480.5" y="231" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="bold" fill="#FFFFFF">COMPLETED</text>
+  <text x="40" y="257" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#94A3B8">10 players</text>
+  <text x="126" y="257" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#94A3B8">Rotation 12/12</text>
+  <text x="240" y="257" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#64748B">2026-06-16 19:00</text>
+  <rect x="24" y="296" width="512" height="82" rx="16" fill="#1E293B" stroke="#334155" stroke-width="1"/>
+  <text x="40" y="327" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF">Sunday League</text>
+  <rect x="469" y="311" width="51" height="20" rx="10" fill="#2563EB"/>
+  <text x="494.5" y="325" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="bold" fill="#FFFFFF">READY</text>
+  <text x="40" y="351" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#94A3B8">14 players</text>
+  <text x="126" y="351" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#94A3B8">Rotation 0/12</text>
+  <text x="233" y="351" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#64748B">2026-06-15 17:45</text>
+  <rect x="24" y="390" width="512" height="82" rx="16" fill="#1E293B" stroke="#334155" stroke-width="1"/>
+  <text x="40" y="421" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF">Friday Scrimmage</text>
+  <rect x="441" y="405" width="79" height="20" rx="10" fill="#15803D"/>
+  <text x="480.5" y="419" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="bold" fill="#FFFFFF">COMPLETED</text>
+  <text x="40" y="445" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#94A3B8">12 players</text>
+  <text x="126" y="445" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#94A3B8">Rotation 12/12</text>
+  <text x="240" y="445" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#64748B">2026-06-12 20:00</text>
+  <rect x="24" y="484" width="512" height="82" rx="16" fill="#1E293B" stroke="#334155" stroke-width="1"/>
+  <text x="40" y="515" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF">Midweek Hoops</text>
+  <rect x="469" y="499" width="51" height="20" rx="10" fill="#475569"/>
+  <text x="494.5" y="513" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="bold" fill="#FFFFFF">SETUP</text>
+  <text x="40" y="539" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#94A3B8">8 players</text>
+  <text x="119" y="539" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#94A3B8">Rotation 0/12</text>
+  <text x="226" y="539" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#64748B">2026-06-10 19:30</text>
+  <rect x="24" y="578" width="512" height="82" rx="16" fill="#1E293B" stroke="#334155" stroke-width="1"/>
+  <text x="40" y="609" font-family="Segoe UI, Arial, sans-serif" font-size="17" font-weight="bold" fill="#FFFFFF">Park Game</text>
+  <rect x="441" y="593" width="79" height="20" rx="10" fill="#15803D"/>
+  <text x="480.5" y="607" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="bold" fill="#FFFFFF">COMPLETED</text>
+  <text x="40" y="633" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#94A3B8">10 players</text>
+  <text x="126" y="633" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#94A3B8">Rotation 12/12</text>
+  <text x="240" y="633" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#64748B">2026-06-07 16:00</text>
+  <text x="280" y="692" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="11" fill="#475569">Long press a game to delete it</text>
+</svg>

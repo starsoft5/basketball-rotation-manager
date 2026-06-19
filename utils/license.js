@@ -2,7 +2,7 @@ import { getDatabase } from "../db/database";
 
 const _K = 0x5A3C6F91E2B7D4A8n;
 const _S = "r0t@t10n_v1_s4lt!#";
-const TRIAL_MS = 14 * 24 * 60 * 60 * 1000;
+const TRIAL_MS = 30 * 24 * 60 * 60 * 1000;
 
 function _h(val) {
   let h = 0x811C9DC5;

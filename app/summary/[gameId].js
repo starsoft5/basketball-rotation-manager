@@ -7,8 +7,11 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
+import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
 import { getFullGameData } from "../../db/database";
 import AnimatedButton from "../../components/AnimatedButton";
+import AnimatedCounter from "../../components/AnimatedCounter";
+import BouncingBall from "../../components/BouncingBall";
 
 export default function SummaryScreen() {
   const router = useRouter();
@@ -41,8 +44,9 @@ export default function SummaryScreen() {
 
   if (!game) {
     return (
-      <View style={s.container}>
-        <Text style={s.loadingText}>Loading summary...</Text>
+      <View style={[s.container, { justifyContent: "center", alignItems: "center" }]}>
+        <BouncingBall size={52} mode="bounce" style={{ marginBottom: 14 }} />
+        <Text style={[s.loadingText, { marginTop: 0 }]}>Loading summary...</Text>
       </View>
     );
   }
@@ -86,7 +90,10 @@ export default function SummaryScreen() {
     const isBottom = !isBenched && (item.total_play_time || 0) === minPlayTime && activePlayers.length > 1 && spread > 0;
 
     return (
-      <View style={[s.playerRow, isBenched && s.playerRowBenched]}>
+      <Animated.View
+        entering={FadeInDown.duration(350).delay(450 + index * 45)}
+        style={[s.playerRow, isBenched && s.playerRowBenched]}
+      >
         <Text style={[s.playerRank, isBenched && s.textMuted]}>{index + 1}</Text>
         <View style={s.playerJersey}>
           <Text style={[s.jerseyText, isBenched && s.textMuted]}>
@@ -95,7 +102,7 @@ export default function SummaryScreen() {
         </View>
         <View style={s.playerInfo}>
           <Text style={[s.playerName, isBenched && s.textMuted]} numberOfLines={1}>
-            {item.name}
+            {isTop ? "🏆 " : ""}{item.name}
             {isBenched ? " (Benched)" : ""}
           </Text>
         </View>
@@ -107,50 +114,50 @@ export default function SummaryScreen() {
             {item.total_play_time || 0}m
           </Text>
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
   return (
     <ScrollView style={s.container} contentContainerStyle={s.content}>
-      <View style={s.titleRow}>
+      <Animated.View entering={FadeInDown.duration(400)} style={s.titleRow}>
         <Text style={s.gameTitle} numberOfLines={2}>{game.name}</Text>
-        <View style={s.statusBadge}>
+        <Animated.View entering={ZoomIn.duration(400).delay(200).springify()} style={s.statusBadge}>
           <Text style={s.statusText}>
             {game.status === "completed" ? "COMPLETED" : game.status?.toUpperCase()}
           </Text>
-        </View>
-      </View>
+        </Animated.View>
+      </Animated.View>
       <Text style={s.dateText}>{game.created_at}</Text>
 
       <View style={s.statsGrid}>
-        <View style={s.statCard}>
-          <Text style={s.statCardValue}>{completedRotations}</Text>
+        <Animated.View entering={FadeInDown.duration(400).delay(100)} style={s.statCard}>
+          <AnimatedCounter value={completedRotations} style={s.statCardValue} />
           <Text style={s.statCardLabel}>🔄 Rotations</Text>
-        </View>
-        <View style={s.statCard}>
+        </Animated.View>
+        <Animated.View entering={FadeInDown.duration(400).delay(180)} style={s.statCard}>
           <Text style={s.statCardValue}>{formatDuration(totalPlayMinutes)}</Text>
           <Text style={s.statCardLabel}>⏱ Play Time</Text>
-        </View>
-        <View style={s.statCard}>
+        </Animated.View>
+        <Animated.View entering={FadeInDown.duration(400).delay(260)} style={s.statCard}>
           <Text style={s.statCardValue}>{formatDuration(breakMinutes)}</Text>
           <Text style={s.statCardLabel}>☕ Break Time</Text>
-        </View>
-        <View style={s.statCard}>
-          <Text style={s.statCardValue}>{players.length}</Text>
+        </Animated.View>
+        <Animated.View entering={FadeInDown.duration(400).delay(340)} style={s.statCard}>
+          <AnimatedCounter value={players.length} style={s.statCardValue} />
           <Text style={s.statCardLabel}>👥 Players</Text>
-        </View>
+        </Animated.View>
       </View>
 
       {activePlayers.length > 1 && (
-        <View style={s.fairnessCard}>
+        <Animated.View entering={FadeInDown.duration(400).delay(420)} style={s.fairnessCard}>
           <Text style={s.fairnessTitle}>Fairness</Text>
           <Text style={s.fairnessValue}>
             {spread === 0
               ? "All active players had equal play time"
               : `Play time spread: ${spread} min between most and least played`}
           </Text>
-        </View>
+        </Animated.View>
       )}
 
       <View style={s.playerSection}>
