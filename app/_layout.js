@@ -2,12 +2,14 @@ import { useState, useRef, useEffect } from "react";
 import { Stack, useRouter, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { View, Text, StyleSheet, BackHandler } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AnimatedButton from "../components/AnimatedButton";
 import { checkLicense } from "../utils/license";
 
 function Header() {
   const router = useRouter();
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
   const isHome = pathname === "/";
   const isGame = pathname.startsWith("/game");
 
@@ -51,7 +53,7 @@ function Header() {
   const title = titles[pathname] || null;
 
   return (
-    <View style={s.header}>
+    <View style={[s.header, { paddingTop: Math.max(insets.top, 24) + 8 }]}>
       {!isHome && (
         <AnimatedButton onPress={handleBack} style={s.backBtn}>
           <Text style={s.backText}>
@@ -136,7 +138,8 @@ const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#0F172A" },
   header: {
     backgroundColor: "#1E293B",
-    paddingTop: 36,
+    // paddingTop is applied dynamically from safe-area insets in the component so
+    // the bar clears the status bar / notch on every device (edge-to-edge is on).
     paddingBottom: 6,
     paddingHorizontal: 16,
   },

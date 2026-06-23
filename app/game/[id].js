@@ -51,6 +51,8 @@ import {
   createRotation,
   updateGameEndTime,
   updateGameBreakTime,
+  updateGameRotationEndTime,
+  updateGameScore,
 } from "../../db/database";
 import { generateSchedule, generateScheduleEqualTime, calcRotations, calcRotationsEqualTime, formatTime } from "../../utils/scheduler";
 import RotationCard from "../../components/RotationCard";
@@ -104,8 +106,12 @@ export default function GameScreen() {
 
   // Responsive: on tablets / landscape, keep content in a centered column
   // rather than stretching edge to edge.
-  const { width: winW } = useWindowDimensions();
+  const { width: winW, height: winH } = useWindowDimensions();
   const isWide = winW >= 700;
+  // Scale the circular timer to the smaller of a width and a height budget, so the
+  // fixed header (timer + scoreboard + stats + buttons) never crowds the rotation
+  // list on small phones, short screens, or when a large system font is set.
+  const timerSize = Math.max(140, Math.min(200, Math.round(Math.min(winW * 0.52, winH * 0.26))));
 
   const [gameData, setGameData] = useState(null);
   const [currentRotation, setCurrentRotation] = useState(0);
@@ -147,6 +153,29 @@ export default function GameScreen() {
   const [flashTrigger, setFlashTrigger] = useState(0);
   const [milestoneConfetti, setMilestoneConfetti] = useState(false);
   const [showCountdown, setShowCountdown] = useState(false);
+
+  // Optional manual scoreboard overlaid on the timer screen. Hidden by default so
+  // it never crowds the rotation tools; toggled with the Show/Hide control. Scores
+  // are persisted to the games row (home_score/away_score) so they survive an app
+  // restart or reopening the game — loaded in loadGame, written on every change.
+  const [showScoreboard, setShowScoreboard] = useState(false);
+  const [homeScore, setHomeScore] = useState(0);
+  const [awayScore, setAwayScore] = useState(0);
+  const homeScoreRef = useRef(0);
+  const awayScoreRef = useRef(0);
+  useEffect(() => { homeScoreRef.current = homeScore; }, [homeScore]);
+  useEffect(() => { awayScoreRef.current = awayScore; }, [awayScore]);
+
+  const bumpScore = useCallback((side, delta) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    const nextHome = side === "home" ? Math.max(0, homeScoreRef.current + delta) : homeScoreRef.current;
+    const nextAway = side === "away" ? Math.max(0, awayScoreRef.current + delta) : awayScoreRef.current;
+    homeScoreRef.current = nextHome;
+    awayScoreRef.current = nextAway;
+    setHomeScore(nextHome);
+    setAwayScore(nextAway);
+    updateGameScore(gameId, nextHome, nextAway).catch(() => {});
+  }, [gameId]);
 
   useKeepAwake();
 
@@ -227,6 +256,7 @@ export default function GameScreen() {
           if (timerRef.current) clearInterval(timerRef.current);
           timerRef.current = null;
           timerEndTimeRef.current = null;
+          updateGameRotationEndTime(gameId, 0).catch(() => {});
           setTimeRemaining(0);
           setIsRunning(false);
           cancelRotationAlert();
@@ -273,6 +303,16 @@ export default function GameScreen() {
       gameEndTimeRef.current = data.game.game_end_time;
     }
 
+    // Restore the persisted scoreboard tally. Reveal the card automatically if a
+    // game already has points on the board, so a returning coach sees it.
+    const savedHome = data.game.home_score || 0;
+    const savedAway = data.game.away_score || 0;
+    setHomeScore(savedHome);
+    setAwayScore(savedAway);
+    homeScoreRef.current = savedHome;
+    awayScoreRef.current = savedAway;
+    if (savedHome > 0 || savedAway > 0) setShowScoreboard(true);
+
     const transitionSecs = settings.transitionTotalSeconds || 0;
     const transitionMins = transitionSecs / 60;
     const minGames = settings.minGamesPerPlayer || 0;
@@ -299,12 +339,29 @@ export default function GameScreen() {
       setSchedule(data.rotations);
       setCurrentRotation(data.game.current_rotation);
       setGameStatus(data.game.status);
-      // Reopening a LIVE game: auto-start the current rotation (at full time)
-      // so the clock is running immediately instead of sitting paused at 10:00.
-      // Deferred so the timeRemaining/duration state above is committed first.
+      // Reopening a LIVE game: resume the current rotation's clock from where it
+      // actually is, not from the full duration. A persisted rotation_end_time
+      // (epoch ms) means the timer was running; compute the real remaining time
+      // and pick up from there so a LIVE game keeps counting down continuously.
       if (data.game.status === "in_progress" && !autoStartedRef.current) {
         autoStartedRef.current = true;
-        setTimeout(() => { startTimerRef.current && startTimerRef.current(); }, 0);
+        const storedEnd = data.game.rotation_end_time || 0;
+        if (storedEnd > 0) {
+          const remaining = Math.round((storedEnd - Date.now()) / 1000);
+          if (remaining > 0) {
+            // Still time left in this rotation — resume from it.
+            setTimeRemaining(remaining);
+            setTimeout(() => { startTimerRef.current && startTimerRef.current(); }, 0);
+          } else {
+            // The rotation elapsed while the game was closed/backgrounded;
+            // advance to the next rotation just as the live timer would have.
+            setTimeRemaining(0);
+            setTimeout(() => { handleRotationEnd(); }, 0);
+          }
+        } else {
+          // No running marker (fresh start). Begin the rotation at full time.
+          setTimeout(() => { startTimerRef.current && startTimerRef.current(); }, 0);
+        }
       }
     } else {
       const firstRotationIds = firstRotation ? firstRotation.split(",").map(Number) : null;
@@ -464,7 +521,11 @@ export default function GameScreen() {
     if (timerRef.current) clearInterval(timerRef.current);
     lastCountdownRef.current = 0;
     setTimeRemaining((current) => {
-      timerEndTimeRef.current = Date.now() + current * 1000;
+      const endTime = Date.now() + current * 1000;
+      timerEndTimeRef.current = endTime;
+      // Persist so reopening a LIVE game resumes the clock from the real
+      // remaining time rather than restarting the rotation at full duration.
+      updateGameRotationEndTime(gameId, endTime).catch(() => {});
       const secs = Math.max(Math.round(current), 1);
       scheduleRotationAlert(secs);
       return current;
@@ -547,6 +608,7 @@ export default function GameScreen() {
         clearInterval(timerRef.current);
         timerRef.current = null;
         timerEndTimeRef.current = null;
+        updateGameRotationEndTime(gameId, 0).catch(() => {});
         setTimeRemaining(0);
         setIsRunning(false);
         cancelRotationAlert();
@@ -570,9 +632,10 @@ export default function GameScreen() {
       timerRef.current = null;
     }
     timerEndTimeRef.current = null;
+    updateGameRotationEndTime(gameId, 0).catch(() => {});
     setIsRunning(false);
     cancelRotationAlert();
-  }, []);
+  }, [gameId]);
 
   const startBreak = useCallback(() => {
     pauseTimer();
@@ -1195,12 +1258,87 @@ export default function GameScreen() {
         <View style={[s.headerInner, isWide && s.centered]}>
         <Text style={s.gameName}>{gameData.game.name}</Text>
 
+        {showScoreboard ? (
+          <ReAnimated.View entering={FadeInDown.duration(250)} style={s.scoreboard}>
+            <View style={s.scoreboardHead}>
+              <Text style={s.scoreboardTitle}>SCOREBOARD</Text>
+              <TouchableOpacity
+                onPress={() => setShowScoreboard(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel="Hide scoreboard"
+              >
+                <Text style={s.scoreboardHide}>Hide ▴</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={s.scoreRow}>
+              <View style={s.scoreSide}>
+                <Text style={s.scoreSideLabel}>HOME</Text>
+                <View style={s.scoreControls}>
+                  <TouchableOpacity
+                    style={s.scoreStep}
+                    onPress={() => bumpScore("home", -1)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Home minus one"
+                  >
+                    <Text style={s.scoreStepTxt}>–</Text>
+                  </TouchableOpacity>
+                  <Text style={[s.scoreValue, { color: "#FB923C" }]} numberOfLines={1}>{homeScore}</Text>
+                  <TouchableOpacity
+                    style={[s.scoreStep, s.scoreStepPlus, { backgroundColor: "#F97316" }]}
+                    onPress={() => bumpScore("home", 1)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Home plus one"
+                  >
+                    <Text style={s.scoreStepPlusTxt}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <Text style={s.scoreVs}>VS</Text>
+
+              <View style={s.scoreSide}>
+                <Text style={s.scoreSideLabel}>AWAY</Text>
+                <View style={s.scoreControls}>
+                  <TouchableOpacity
+                    style={s.scoreStep}
+                    onPress={() => bumpScore("away", -1)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Away minus one"
+                  >
+                    <Text style={s.scoreStepTxt}>–</Text>
+                  </TouchableOpacity>
+                  <Text style={[s.scoreValue, { color: "#38BDF8" }]} numberOfLines={1}>{awayScore}</Text>
+                  <TouchableOpacity
+                    style={[s.scoreStep, s.scoreStepPlus, { backgroundColor: "#0EA5E9" }]}
+                    onPress={() => bumpScore("away", 1)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Away plus one"
+                  >
+                    <Text style={s.scoreStepPlusTxt}>+</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </ReAnimated.View>
+        ) : (
+          <TouchableOpacity
+            style={s.scoreboardShow}
+            onPress={() => setShowScoreboard(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Show scoreboard"
+          >
+            <Text style={s.scoreboardShowTxt}>🏀 Scoreboard  {homeScore}–{awayScore}  ▾</Text>
+          </TouchableOpacity>
+        )}
+
         <CircularTimer
           timeRemaining={timeRemaining}
           totalDuration={rotationDuration}
           formattedTime={formatTime(timeRemaining)}
           running={isRunning}
           onBreak={isOnBreak}
+          size={timerSize}
           subtitle={
             gameStatus === "ready"
               ? "Ready to start"
@@ -1842,8 +1980,8 @@ export default function GameScreen() {
             <RotationCard
               rotation={item}
               isActive={gameStatus === "in_progress" && index === currentRotation - 1}
+              isNext={gameStatus === "in_progress" && index === currentRotation}
               isCompleted={completed}
-              onBenchPlayer={!completed && !(gameStatus === "in_progress" && index === currentRotation - 1) ? (player) => handleBenchAndSubstitute(player, item) : undefined}
               highlightedPlayerIds={highlightedSubs.filter((h) => h.rotationId === item.id).map((h) => h.playerId)}
             />
           );
@@ -1887,6 +2025,45 @@ const s = StyleSheet.create({
     borderBottomRightRadius: 24,
   },
   gameName: { color: "#94A3B8", fontSize: 13, textAlign: "center", marginBottom: 0 },
+  scoreboard: {
+    backgroundColor: "#162338",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#334155",
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  scoreboardHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
+  scoreboardTitle: { color: "#7E90AE", fontSize: 10, fontWeight: "bold", letterSpacing: 1 },
+  scoreboardHide: { color: "#94A3B8", fontSize: 12, fontWeight: "bold" },
+  scoreRow: { flexDirection: "row", alignItems: "center" },
+  scoreSide: { flex: 1, alignItems: "center" },
+  scoreControls: { flexDirection: "row", alignItems: "center", gap: 6 },
+  scoreSideLabel: { color: "#94A3B8", fontSize: 11, fontWeight: "bold", letterSpacing: 1, marginBottom: 3 },
+  scoreValue: { fontSize: 26, fontWeight: "900", fontVariant: ["tabular-nums"], includeFontPadding: false, minWidth: 30, textAlign: "center" },
+  scoreVs: { color: "#5C6E8C", fontSize: 12, fontWeight: "bold", paddingHorizontal: 6 },
+  scoreStep: {
+    width: 34, height: 32, borderRadius: 9,
+    backgroundColor: "#0F1A30", borderWidth: 1, borderColor: "#334155",
+    alignItems: "center", justifyContent: "center",
+  },
+  scoreStepTxt: { color: "#94A3B8", fontSize: 20, fontWeight: "900", lineHeight: 22 },
+  scoreStepPlus: { borderWidth: 0 },
+  scoreStepPlusTxt: { color: "#FFF", fontSize: 20, fontWeight: "900", lineHeight: 22 },
+  scoreboardShow: {
+    alignSelf: "center",
+    backgroundColor: "#162338",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#334155",
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  scoreboardShowTxt: { color: "#CBD5E1", fontSize: 13, fontWeight: "bold" },
   progressBg: { width: "100%", backgroundColor: "#1E293B", height: 5, borderRadius: 3, marginBottom: 4 },
   progressFill: { backgroundColor: "#3B82F6", height: 5, borderRadius: 3 },
   statsRow: { flexDirection: "row", justifyContent: "space-around", alignItems: "flex-start", marginTop: 2, marginBottom: 6 },

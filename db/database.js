@@ -24,6 +24,15 @@ async function initializeDatabase(database) {
   try {
     await database.runAsync("ALTER TABLE games ADD COLUMN break_time_seconds INTEGER DEFAULT 0");
   } catch (e) {}
+  try {
+    await database.runAsync("ALTER TABLE games ADD COLUMN rotation_end_time INTEGER DEFAULT 0");
+  } catch (e) {}
+  try {
+    await database.runAsync("ALTER TABLE games ADD COLUMN home_score INTEGER DEFAULT 0");
+  } catch (e) {}
+  try {
+    await database.runAsync("ALTER TABLE games ADD COLUMN away_score INTEGER DEFAULT 0");
+  } catch (e) {}
 
   await database.execAsync(`
     CREATE TABLE IF NOT EXISTS games (
@@ -36,6 +45,11 @@ async function initializeDatabase(database) {
       plays_per_player INTEGER NOT NULL DEFAULT 4,
       current_rotation INTEGER DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'setup',
+      rotation_end_time INTEGER DEFAULT 0,
+      game_end_time INTEGER DEFAULT 0,
+      break_time_seconds INTEGER DEFAULT 0,
+      home_score INTEGER DEFAULT 0,
+      away_score INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now', 'localtime'))
     );
 
@@ -324,6 +338,41 @@ export async function updateGameEndTime(gameId, endTimeMs) {
 export async function updateGameBreakTime(gameId, breakTimeSeconds) {
   const database = await getDatabase();
   await database.runAsync("UPDATE games SET break_time_seconds = ? WHERE id = ?", [breakTimeSeconds, gameId]);
+}
+
+// Persist the absolute epoch-ms at which the current rotation's timer will hit
+// zero, so reopening a LIVE game can resume the clock from the correct remaining
+// time instead of restarting at the full rotation duration. 0 means "not
+// running" (paused, on break, or rotation already ended).
+export async function updateGameRotationEndTime(gameId, endTimeMs) {
+  const database = await getDatabase();
+  await database.runAsync("UPDATE games SET rotation_end_time = ? WHERE id = ?", [endTimeMs, gameId]);
+}
+
+// Standalone LED Scoreboard screen state (clock, scores, fouls, timeouts,
+// period, shot clock, possession) persisted as one JSON blob in settings so it
+// survives app restarts. Not tied to a rotation game.
+export async function getScoreboardState() {
+  const database = await getDatabase();
+  const row = await database.getFirstAsync(
+    "SELECT value FROM settings WHERE key = 'scoreboard_state'"
+  );
+  if (!row || !row.value) return null;
+  try { return JSON.parse(row.value); } catch (e) { return null; }
+}
+
+export async function saveScoreboardState(state) {
+  await saveSetting("scoreboard_state", JSON.stringify(state));
+}
+
+// Persist the manual scoreboard tally (home/away points) so it survives an app
+// restart or reopening the game, mirroring how break_time_seconds is stored.
+export async function updateGameScore(gameId, homeScore, awayScore) {
+  const database = await getDatabase();
+  await database.runAsync(
+    "UPDATE games SET home_score = ?, away_score = ? WHERE id = ?",
+    [homeScore, awayScore, gameId]
+  );
 }
 
 export async function getFullGameData(gameId) {

@@ -10,6 +10,7 @@ import Animated, {
   useAnimatedStyle,
   withRepeat,
   withTiming,
+  withDelay,
   cancelAnimation,
   Easing,
 } from "react-native-reanimated";
@@ -29,7 +30,29 @@ function ActiveGlow() {
   return <Animated.View pointerEvents="none" style={[s.glow, style]} />;
 }
 
-export default function RotationCard({ rotation, isActive, isCompleted, onBenchPlayer, highlightedPlayerIds = [] }) {
+// A player chip for the upcoming ("Next") rotation that gently sways left↔right
+// so the next group on deck draws the eye. Each chip is phase-offset by its
+// index, giving the row a soft wave instead of moving in lockstep.
+function SwayChip({ children, style, delay }) {
+  const sway = useSharedValue(0);
+  useEffect(() => {
+    sway.value = withDelay(
+      delay,
+      withRepeat(
+        withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sin) }),
+        -1,
+        true
+      )
+    );
+    return () => cancelAnimation(sway);
+  }, []);
+  const aStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: (sway.value * 2 - 1) * 6 }],
+  }));
+  return <Animated.View style={[style, aStyle]}>{children}</Animated.View>;
+}
+
+export default function RotationCard({ rotation, isActive, isNext, isCompleted, onBenchPlayer, highlightedPlayerIds = [] }) {
   const [selectedId, setSelectedId] = useState(null);
   const borderColor = isActive
     ? "#F97316"
@@ -132,6 +155,16 @@ export default function RotationCard({ rotation, isActive, isCompleted, onBenchP
                   #{player.jersey_number} {player.name}
                 </Text>
               </TouchableOpacity>
+            );
+          }
+
+          if (isNext) {
+            return (
+              <SwayChip key={player.id} style={chipStyle} delay={chipIndex * 90}>
+                <Text style={textStyle}>
+                  #{player.jersey_number} {player.name}
+                </Text>
+              </SwayChip>
             );
           }
 

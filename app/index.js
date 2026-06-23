@@ -55,6 +55,15 @@ export default function HomeScreen() {
 
       <Animated.View entering={FadeInDown.duration(400).delay(380)} style={s.fullWidth}>
         <AnimatedButton
+          style={[s.secondaryBtn, s.scoreboardBtn]}
+          onPress={() => router.push("/scoreboard")}
+        >
+          <Text style={s.secondaryBtnText}>🏀 Scoreboard</Text>
+        </AnimatedButton>
+      </Animated.View>
+
+      <Animated.View entering={FadeInDown.duration(400).delay(440)} style={s.fullWidth}>
+        <AnimatedButton
           style={[s.secondaryBtn, s.shareBtn]}
           onPress={() => router.push("/share")}
         >
@@ -133,6 +142,10 @@ const s = StyleSheet.create({
     textAlign: "center",
     fontSize: 20,
     fontWeight: "bold",
+  },
+  scoreboardBtn: {
+    marginTop: 12,
+    borderColor: "#FFB200",
   },
   shareBtn: {
     marginTop: 12,

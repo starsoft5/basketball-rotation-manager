@@ -1,0 +1,1 @@
+C:\Users\Administrator\AppData\Local\Microsoft\WinGet\Packages\Genymobile.scrcpy_Microsoft.Winget.Source_8wekyb3d8bbwe\scrcpy-win64-v4.0\scrcpy-server: 1 file pushed, 0 skipped. 272.2 MB/s (732226 bytes in 0.003s)

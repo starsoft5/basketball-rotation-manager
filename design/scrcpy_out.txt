@@ -1,0 +1,6 @@
+scrcpy 4.0 <https://github.com/Genymobile/scrcpy>
+INFO: ADB device found:
+INFO:     --> (tcpip)  emulator-5554                   device  sdk_gphone16k_x86_64
+[server] INFO: Device: [Google] google sdk_gphone16k_x86_64 (Android 17)
+INFO: Renderer: direct3d11
+INFO: Texture: 1280x720

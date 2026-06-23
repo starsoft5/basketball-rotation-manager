@@ -1,0 +1,8 @@
+scrcpy 4.0 <https://github.com/Genymobile/scrcpy>
+INFO: ADB device found:
+INFO:     --> (tcpip)  192.168.1.6:38223               device  SM_A576B
+INFO:         (tcpip)  emulator-5554                   device  sdk_gphone16k_x86_64
+[server] INFO: Device: [samsung] samsung SM-A576B (Android 16)
+[server] INFO: New display: 1280x720/246 (id=45)
+INFO: Renderer: direct3d11
+INFO: Texture: 1280x720

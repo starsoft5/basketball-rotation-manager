@@ -15,12 +15,6 @@ import Animated, {
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-const SIZE = 180;
-const STROKE_WIDTH = 8;
-const RADIUS = (SIZE - STROKE_WIDTH) / 2;
-const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-const CENTER = SIZE / 2;
-
 export default function CircularTimer({
   timeRemaining,
   totalDuration,
@@ -28,7 +22,15 @@ export default function CircularTimer({
   subtitle,
   running,
   onBreak,
+  size = 180,
 }) {
+  // Ring, stroke and text all derive from `size`, which the game screen scales to
+  // the window so the timer fits small and short screens without clipping.
+  const STROKE_WIDTH = Math.max(6, Math.round(size * 0.045));
+  const RADIUS = (size - STROKE_WIDTH) / 2;
+  const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+  const CENTER = size / 2;
+
   const progress = totalDuration > 0 ? Math.max(0, Math.min(1, timeRemaining / totalDuration)) : 1;
   const urgent = timeRemaining <= 10 && timeRemaining > 0;
   // #3 — a softer pre-warning beat in the 11-20s window before the urgent heartbeat.
@@ -104,10 +106,10 @@ export default function CircularTimer({
   const numberColor = onBreak ? "#FBBF24" : urgent ? "#EF4444" : "#FFF";
 
   return (
-    <View style={s.container}>
+    <View style={[s.container, { marginVertical: size < 168 ? 4 : 10 }]}>
       <Svg
-        width={SIZE}
-        height={SIZE}
+        width={size}
+        height={size}
         style={[s.svg, { transform: [{ rotate: "-90deg" }] }]}
       >
         <Circle
@@ -129,14 +131,14 @@ export default function CircularTimer({
           strokeLinecap="round"
         />
       </Svg>
-      <Animated.View style={[s.textWrap, pulseStyle]}>
+      <Animated.View style={[s.textWrap, { width: size, height: size }, pulseStyle]}>
         <Text
           allowFontScaling={false}
-          style={[s.timeText, { color: numberColor }]}
+          style={[s.timeText, { fontSize: Math.round(size * 0.245), color: numberColor }]}
         >
           {formattedTime}
         </Text>
-        <Text style={s.subtitle}>{subtitle}</Text>
+        <Text style={[s.subtitle, { fontSize: Math.max(11, Math.round(size * 0.072)) }]}>{subtitle}</Text>
       </Animated.View>
     </View>
   );
@@ -146,20 +148,15 @@ const s = StyleSheet.create({
   container: {
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 10,
-    marginBottom: 10,
   },
   svg: {
     position: "absolute",
   },
   textWrap: {
-    width: SIZE,
-    height: SIZE,
     alignItems: "center",
     justifyContent: "center",
   },
   timeText: {
-    fontSize: 44,
     fontWeight: "bold",
     fontVariant: ["tabular-nums"],
     includeFontPadding: false,
@@ -167,7 +164,6 @@ const s = StyleSheet.create({
   },
   subtitle: {
     color: "#94A3B8",
-    fontSize: 13,
     marginTop: 2,
   },
 });

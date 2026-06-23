@@ -1,0 +1,4 @@
+C:\Users\Administrator\AppData\Local\Microsoft\WinGet\Packages\Genymobile.scrcpy_Microsoft.Winget.Source_8wekyb3d8bbwe\scrcpy-win64-v4.0\scrcpy-server: 1 file pushed, 0 skipped. 209.7 MB/s (732226 bytes in 0.003s)
+[server] WARN: Display doesn't have FLAG_SUPPORTS_PROTECTED_BUFFERS flag, mirroring can be restricted
+ERROR: Could not open audio device: No default audio device available
+ERROR: Demuxer error
