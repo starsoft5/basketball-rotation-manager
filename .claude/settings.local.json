@@ -383,7 +383,9 @@
       "Bash(MSYS_NO_PATHCONV=1 adb shell rm /sdcard/sb_shot.png)",
       "Bash(MSYS_NO_PATHCONV=1 adb pull /sdcard/sb_shot.png 'E:/basketball-rotation-manager/sb_shot.png')",
       "Bash(MSYS_NO_PATHCONV=1 adb shell *)",
-      "Bash(MSYS_NO_PATHCONV=1 adb pull /sdcard/ov.png 'E:/basketball-rotation-manager/ov.png')"
+      "Bash(MSYS_NO_PATHCONV=1 adb pull /sdcard/ov.png 'E:/basketball-rotation-manager/ov.png')",
+      "Bash(./gradlew assembleRelease --console=plain)",
+      "Bash(tee /e/basketball-rotation-manager/build_out.txt)"
     ]
   }
 }

@@ -57,6 +57,19 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
     private val TO_DOTS = 3            // max timeouts a team can hold at once (FIBA 2nd half)
     private val BONUS_OFF_ALPHA = 0.12f // dimmed BONUS light when not in the penalty
 
+    // Fresh-game board shown the moment the display opens, before JS pushes state.
+    private val DEFAULT_STATE: Map<String, Any?> = mapOf(
+        "clock" to "10:00",
+        "running" to false,
+        "shot" to 24, "shotOff" to false,
+        "home" to 0, "guest" to 0,
+        "hFoul" to 0, "gFoul" to 0,
+        "hBonus" to false, "gBonus" to false,
+        "hTO" to 2, "gTO" to 2, "toMax" to 2,  // FIBA first half: 2 timeouts
+        "period" to 1,
+        "poss" to "home",
+    )
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val metrics = DisplayMetrics()
@@ -64,6 +77,11 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         display.getRealMetrics(metrics)
         val h = metrics.heightPixels.toFloat()
         setContentView(buildRoot(context, h))
+
+        // First open: render the fresh-game board immediately (10:00 · 0–0 · P1 ·
+        // Sht Clk 24 · home possession) so it never flashes blank before JS pushes
+        // the first real state. The next applyState() simply overwrites these.
+        applyState(DEFAULT_STATE)
 
         // Immersive fullscreen so the external display shows ONLY the board — no
         // Samsung status bar, navigation bar or taskbar framing it.
