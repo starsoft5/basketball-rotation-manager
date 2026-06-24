@@ -139,7 +139,7 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         top.layoutParams = LinearLayout.LayoutParams(MP, 0, 1f)
 
         top.addView(buildCorner(ctx, h, true))
-        clockTv = led(ctx, h * 0.26f, cClock)
+        clockTv = led(ctx, h * 0.30f, cClock)
         clockTv.layoutParams = LinearLayout.LayoutParams(0, WC, 2.4f)
         top.addView(clockTv)
         top.addView(buildCorner(ctx, h, false))
@@ -239,7 +239,7 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         col.addView(nums)
 
         col.addView(label(ctx, "Sht Clk", h * 0.032f, cLabel))
-        shotTv = led(ctx, h * 0.11f, cShot)
+        shotTv = led(ctx, h * 0.16f, cShot)
         col.addView(shotTv)
         return col
     }
@@ -261,11 +261,11 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         hFoulTv.text = num("hFoul").toString()
         gFoulTv.text = num("gFoul").toString()
 
-        // Shot clock: switched off (shown as "--") in a period's final 24s.
+        // Shot clock: hidden (blank) once the game clock has less time left than it.
         val shot = num("shot")
         val shotOff = (s["shotOff"] as? Boolean) ?: false
         if (shotOff) {
-            shotTv.text = "--"
+            shotTv.text = ""
             setGlow(shotTv, cDim, false)
         } else {
             shotTv.text = String.format("%02d", shot)

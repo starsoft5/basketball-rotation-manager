@@ -371,7 +371,19 @@
       "PowerShell(scrcpy *)",
       "PowerShell($d=\"192.168.1.4:37371\"; adb -s $d shell screencap -d 110 -p /sdcard/disp110.png; adb -s $d pull /sdcard/disp110.png \"E:\\\\basketball-rotation-manager\\\\disp110.png\" 2>&1 | Select-Object -Last 1; adb -s $d shell rm /sdcard/disp110.png)",
       "PowerShell(taskkill *)",
-      "Bash(where.exe adb *)"
+      "Bash(where.exe adb *)",
+      "PowerShell($env:NODE_OPTIONS=\"--use-system-ca\"; npx eas-cli build --platform android --profile production --non-interactive --no-wait)",
+      "PowerShell(& 'E:\\\\basketball-rotation-manager\\\\scoreboard.ps1')",
+      "PowerShell($env:JAVA_HOME=\"E:\\\\Android Studio\\\\jbr\"; cmd /c \"E:\\\\basketball-rotation-manager\\\\android\\\\gradlew.bat -p E:\\\\basketball-rotation-manager\\\\android :app:assembleRelease --console=plain > E:\\\\basketball-rotation-manager\\\\build_out.txt 2>&1\")",
+      "PowerShell(Select-String -Path E:\\\\basketball-rotation-manager\\\\build_out.txt -Pattern \"BUILD SUCCESSFUL|BUILD FAILED|error:\" | Select-Object -Last 5; \"`n--- APK ---\"; Get-ChildItem E:\\\\basketball-rotation-manager\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk | Select-Object Name,Length,LastWriteTime)",
+      "PowerShell(Select-String -Path E:\\\\basketball-rotation-manager\\\\build_out.txt -Pattern \"BUILD SUCCESSFUL|BUILD FAILED|error:\" | Select-Object -Last 5; \"`n--- APK ---\"; Get-ChildItem E:\\\\basketball-rotation-manager\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk | Select-Object Name,LastWriteTime)",
+      "PowerShell(adb exec-out *)",
+      "Bash(MSYS_NO_PATHCONV=1 adb shell screencap -p /sdcard/sb_shot.png)",
+      "Bash(MSYS_NO_PATHCONV=1 adb pull /sdcard/sb_shot.png /tmp/sb_shot.png)",
+      "Bash(MSYS_NO_PATHCONV=1 adb shell rm /sdcard/sb_shot.png)",
+      "Bash(MSYS_NO_PATHCONV=1 adb pull /sdcard/sb_shot.png 'E:/basketball-rotation-manager/sb_shot.png')",
+      "Bash(MSYS_NO_PATHCONV=1 adb shell *)",
+      "Bash(MSYS_NO_PATHCONV=1 adb pull /sdcard/ov.png 'E:/basketball-rotation-manager/ov.png')"
     ]
   }
 }
