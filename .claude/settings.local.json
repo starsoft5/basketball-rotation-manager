@@ -385,7 +385,14 @@
       "Bash(MSYS_NO_PATHCONV=1 adb shell *)",
       "Bash(MSYS_NO_PATHCONV=1 adb pull /sdcard/ov.png 'E:/basketball-rotation-manager/ov.png')",
       "Bash(./gradlew assembleRelease --console=plain)",
-      "Bash(tee /e/basketball-rotation-manager/build_out.txt)"
+      "Bash(tee /e/basketball-rotation-manager/build_out.txt)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\basketball-rotation-manager\\\\modules\\\\scoreboard-display\\\\android\\\\src\" -Recurse | Where-Object { $_.Extension -in '.kt', '.json', '.xml' } | Select-Object -ExpandProperty FullName)",
+      "Bash(curl -s -m 3 http://192.168.1.2:8085/status)",
+      "Bash(curl -s -m 3 http://127.0.0.1:8085/status)",
+      "Bash(curl -s -m 3 http://127.0.0.1:8081/status)",
+      "Bash(findstr /i \"IPv4\")",
+      "PowerShell(Get-NetTCPConnection *)",
+      "PowerShell(\\(Get-Item 'E:\\\\basketball-rotation-manager\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk'\\).LastWriteTime)"
     ]
   }
 }

@@ -220,10 +220,10 @@ export default function ScoreboardScreen() {
     if (clock === 0 && running) { setRunning(false); horn(); } // period clock ends → loud buzzer
   }, [clock, running]);
   useEffect(() => {
-    // The shot clock is switched off once the game clock has less time left than
-    // the shot clock (clock <= shot), so a 0 then is the period clock running out,
-    // not a shot-clock violation — only buzz/flip while the shot clock is on.
-    if (shot === 0 && running && clock > shot) {
+    // The shot clock is switched off in the period's final 24s (clock < SHOT_FULL),
+    // so a 0 then is the period clock running out, not a shot-clock violation —
+    // only buzz/flip while the shot clock is on (clock >= SHOT_FULL).
+    if (shot === 0 && running && clock >= SHOT_FULL) {
       setRunning(false);
       horn(); // shot-clock violation stops play → sound the loud buzzer (same as game-clock end)
       setPoss((p) => (p === "home" ? "guest" : "home")); // violation is a turnover → other team's ball
@@ -303,7 +303,7 @@ export default function ScoreboardScreen() {
   const buildState = useCallback(() => ({
     clock: fmtClock(clock),
     shot, home, guest, hFoul, gFoul, hTO, gTO, period, poss, running,
-    shotOff: clock <= shot,                // hide the shot clock once game time left <= shot clock
+    shotOff: clock < SHOT_FULL,            // hide the shot clock in the period's final 24s (game time left < 24)
     hBonus: hFoul >= FOUL_BONUS,           // home in the penalty (guest shoots free throws)
     gBonus: gFoul >= FOUL_BONUS,           // guest in the penalty (home shoots free throws)
     toMax: toAllotment(period),            // how many timeout dots to show this half

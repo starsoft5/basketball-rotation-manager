@@ -256,7 +256,7 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         }
         col.addView(nums)
 
-        col.addView(label(ctx, "Sht Clk", h * 0.032f, cLabel))
+        col.addView(label(ctx, "Shot Clock", h * 0.032f, cLabel))
         shotTv = led(ctx, h * 0.16f, cShot)
         col.addView(shotTv)
         return col
