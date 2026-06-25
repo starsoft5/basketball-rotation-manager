@@ -392,7 +392,16 @@
       "Bash(curl -s -m 3 http://127.0.0.1:8081/status)",
       "Bash(findstr /i \"IPv4\")",
       "PowerShell(Get-NetTCPConnection *)",
-      "PowerShell(\\(Get-Item 'E:\\\\basketball-rotation-manager\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk'\\).LastWriteTime)"
+      "PowerShell(\\(Get-Item 'E:\\\\basketball-rotation-manager\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk'\\).LastWriteTime)",
+      "Bash(/c/Users/Administrator/AppData/Local/Microsoft/WinGet/Packages/Genymobile.scrcpy_Microsoft.Winget.Source_8wekyb3d8bbwe/scrcpy-win64-v4.0/scrcpy.exe --serial 192.168.1.4:43979 --display-id=129 --no-audio --window-title=BOARD129 --window-borderless --window-x=80 --window-y=80 --window-width=1280 --window-height=720 --always-on-top)",
+      "Bash(echo \"scrcpy launched pid $!\")",
+      "Bash(/c/Users/Administrator/AppData/Local/Microsoft/WinGet/Packages/Genymobile.scrcpy_Microsoft.Winget.Source_8wekyb3d8bbwe/scrcpy-win64-v4.0/scrcpy.exe --serial 192.168.1.4:43979 --display-id=129 --no-audio --fullscreen --window-title=BOARD129)",
+      "Bash(echo \"scrcpy launched \\(fullscreen\\) pid $!\")",
+      "Bash(powershell.exe -NoProfile -Command \"\\(Get-Process scrcpy -ErrorAction SilentlyContinue | Measure-Object\\).Count\")",
+      "Bash(/c/Users/Administrator/AppData/Local/Microsoft/WinGet/Packages/Genymobile.scrcpy_Microsoft.Winget.Source_8wekyb3d8bbwe/scrcpy-win64-v4.0/scrcpy.exe --serial 192.168.1.4:43979 --display-id=129 --no-audio --fullscreen '--window-title=LED Scoreboard')",
+      "Bash(echo \"relaunched fullscreen pid $!\")",
+      "Bash(echo \"current overlay setting: '$\\(adb shell settings get global overlay_display_devices)",
+      "Bash(powershell.exe -NoProfile -Command 'Get-Item '\\\\''E:\\\\basketball-rotation-manager\\\\android\\\\app\\\\build\\\\outputs\\\\apk\\\\release\\\\app-release.apk'\\\\'' | Select-Object @{n='\\\\''SizeMB'\\\\'';e={[math]::Round\\($_.Length/1MB,1\\)}}, LastWriteTime | Format-List')"
     ]
   }
 }

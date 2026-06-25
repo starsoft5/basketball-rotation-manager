@@ -146,7 +146,7 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         val root = LinearLayout(ctx)
         root.orientation = LinearLayout.VERTICAL
         root.setBackgroundColor(cBg)
-        val pad = (h * 0.05f).toInt()
+        val pad = (h * 0.03f).toInt()
         root.setPadding(pad, pad, pad, pad)
         root.gravity = Gravity.CENTER_VERTICAL
 
@@ -157,8 +157,8 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         top.layoutParams = LinearLayout.LayoutParams(MP, 0, 1f)
 
         top.addView(buildCorner(ctx, h, true))
-        clockTv = led(ctx, h * 0.30f, cClock)
-        clockTv.layoutParams = LinearLayout.LayoutParams(0, WC, 2.4f)
+        clockTv = led(ctx, h * 0.34f, cClock)
+        clockTv.layoutParams = LinearLayout.LayoutParams(0, WC, 2.8f)
         top.addView(clockTv)
         top.addView(buildCorner(ctx, h, false))
         root.addView(top)
@@ -183,12 +183,12 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         col.gravity = Gravity.CENTER
         col.layoutParams = weighted(1f)
 
-        val poss = led(ctx, h * 0.06f, cFoul)
+        val poss = led(ctx, h * 0.075f, cFoul)
         poss.text = if (isLeft) "◀" else "▶"
         if (isLeft) possLeft = poss else possRight = poss
         col.addView(poss)
 
-        col.addView(label(ctx, "T.O.", h * 0.035f, cTo))
+        col.addView(label(ctx, "T.O.", h * 0.044f, cTo))
 
         val dots = LinearLayout(ctx)
         dots.orientation = LinearLayout.HORIZONTAL
@@ -207,14 +207,14 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         }
         col.addView(dots)
 
-        val foul = led(ctx, h * 0.09f, cFoul)
+        val foul = led(ctx, h * 0.11f, cFoul)
         if (isLeft) hFoulTv = foul else gFoulTv = foul
         col.addView(foul)
 
-        col.addView(label(ctx, "FOULS", h * 0.03f, cFoul))
+        col.addView(label(ctx, "FOULS", h * 0.038f, cFoul))
 
         // Penalty/bonus light — lit when this team has reached the foul limit for the period.
-        val bonus = label(ctx, "BONUS", h * 0.03f, cFoul)
+        val bonus = label(ctx, "BONUS", h * 0.038f, cFoul)
         bonus.alpha = BONUS_OFF_ALPHA
         if (isLeft) hBonusTv = bonus else gBonusTv = bonus
         col.addView(bonus)
@@ -227,8 +227,8 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         col.gravity = Gravity.CENTER
         col.layoutParams = weighted(1f)
 
-        col.addView(label(ctx, name, h * 0.05f, cTeam))
-        val score = led(ctx, h * 0.27f, cScore)
+        col.addView(label(ctx, name, h * 0.062f, cTeam))
+        val score = led(ctx, h * 0.32f, cScore)
         if (isHome) homeTv = score else guestTv = score
         col.addView(score)
         return col
@@ -240,13 +240,13 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         col.gravity = Gravity.CENTER
         col.layoutParams = weighted(1f)
 
-        col.addView(label(ctx, "PERIOD", h * 0.035f, cLabel))
+        col.addView(label(ctx, "PERIOD", h * 0.044f, cLabel))
         val nums = LinearLayout(ctx)
         nums.orientation = LinearLayout.HORIZONTAL
         nums.gravity = Gravity.CENTER
         val m = (h * 0.012f).toInt()
         for (i in 1..4) {
-            val t = led(ctx, h * 0.05f, cDim)
+            val t = led(ctx, h * 0.062f, cDim)
             t.text = i.toString()
             val lp = LinearLayout.LayoutParams(WC, WC)
             lp.setMargins(m, 0, m, 0)
@@ -256,8 +256,8 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         }
         col.addView(nums)
 
-        col.addView(label(ctx, "Shot Clock", h * 0.032f, cLabel))
-        shotTv = led(ctx, h * 0.16f, cShot)
+        col.addView(label(ctx, "Shot Clock", h * 0.040f, cLabel))
+        shotTv = led(ctx, h * 0.20f, cShot)
         col.addView(shotTv)
         return col
     }
