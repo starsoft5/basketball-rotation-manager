@@ -85,6 +85,21 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
 
         // Immersive fullscreen so the external display shows ONLY the board — no
         // Samsung status bar, navigation bar or taskbar framing it.
+        hideSystemBars()
+        // Re-apply once the window is attached (the insets controller can be a no-op
+        // before then) and again whenever the bars sneak back in, so the footer stays
+        // gone for the whole session rather than just at first paint.
+        window?.decorView?.let { dv ->
+            dv.post { hideSystemBars() }
+            @Suppress("DEPRECATION")
+            dv.setOnSystemUiVisibilityChangeListener { vis ->
+                if (vis and View.SYSTEM_UI_FLAG_FULLSCREEN == 0) hideSystemBars()
+            }
+        }
+    }
+
+    /** Drive both the modern (API 30+) and legacy paths to hide the status/nav bars. */
+    private fun hideSystemBars() {
         window?.let { w ->
             w.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -96,17 +111,17 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
                     c.systemBarsBehavior =
                         WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 }
-            } else {
-                @Suppress("DEPRECATION")
-                w.decorView.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                    View.SYSTEM_UI_FLAG_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                )
             }
+            // Keep the legacy flags too — harmless on API 30+ and required on older.
+            @Suppress("DEPRECATION")
+            w.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            )
         }
     }
 
@@ -146,8 +161,11 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         val root = LinearLayout(ctx)
         root.orientation = LinearLayout.VERTICAL
         root.setBackgroundColor(cBg)
-        val pad = (h * 0.03f).toInt()
-        root.setPadding(pad, pad, pad, pad)
+        // Maximize the usable width: keep a small vertical margin but let the board
+        // run nearly edge-to-edge horizontally so the clock/scores get the full width.
+        val padV = (h * 0.03f).toInt()
+        val padH = (h * 0.012f).toInt()
+        root.setPadding(padH, padV, padH, padV)
         root.gravity = Gravity.CENTER_VERTICAL
 
         // ---- TOP: corners + clock ----
@@ -157,8 +175,18 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         top.layoutParams = LinearLayout.LayoutParams(MP, 0, 1f)
 
         top.addView(buildCorner(ctx, h, true))
-        clockTv = led(ctx, h * 0.34f, cClock)
-        clockTv.layoutParams = LinearLayout.LayoutParams(0, WC, 2.8f)
+        clockTv = led(ctx, h * 0.40f, cClock)
+        clockTv.maxLines = 1
+        clockTv.layoutParams = LinearLayout.LayoutParams(0, WC, 3.4f)
+        // Auto-shrink the clock to fit its column on one line, so a 5-char value like
+        // "10:00" always renders in full instead of being clipped to "10:0" on a wide,
+        // short external display. (The native equivalent of the JS adjustsFontSizeToFit.)
+        clockTv.setAutoSizeTextTypeUniformWithConfiguration(
+            (h * 0.14f).toInt().coerceAtLeast(12),
+            (h * 0.40f).toInt(),
+            2,
+            TypedValue.COMPLEX_UNIT_PX,
+        )
         top.addView(clockTv)
         top.addView(buildCorner(ctx, h, false))
         root.addView(top)
