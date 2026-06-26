@@ -8,6 +8,7 @@ import {
   TextInput,
   Platform,
   Alert,
+  Animated,
   useWindowDimensions,
 } from "react-native";
 import * as Haptics from "expo-haptics";
@@ -45,6 +46,7 @@ const TO_SECOND_HALF = 3;
 const TO_MAX = TO_SECOND_HALF; // most a team can hold at once → timeout-dot capacity
 const toAllotment = (period) => (period <= 2 ? TO_FIRST_HALF : TO_SECOND_HALF);
 const SHOT_FULL = 24;  // a full shot clock; the shot clock is switched off in a period's final 24s
+const SHOT_TOGGLE_AT = 23; // game-clock seconds at/under which the hidden Show/Hide-shot-clock toggle appears
 const FOUL_BONUS = 5;  // FIBA: a team's 5th foul in a period puts it in the penalty (opponent shoots)
 const CORNER_W = 74;     // width of each T.O./fouls corner column
 const BOARD_PAD_H = 12;  // board horizontal padding (must match styles.board)
@@ -162,6 +164,10 @@ export default function ScoreboardScreen() {
   const [period, setPeriod] = useState(1);
   const [poss, setPoss] = useState("home");
   const [periodLen, setPeriodLen] = useState(PERIOD_DEFAULT);
+  // Endgame override: in the period's final 24s the shot clock is auto-hidden, but
+  // when ≤23s remain a hidden toggle (below) lets the operator force it back on.
+  // Default Off → shot clock stays hidden until the operator taps the toggle on.
+  const [shotShown, setShotShown] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [editM, setEditM] = useState("10");
@@ -241,7 +247,7 @@ export default function ScoreboardScreen() {
     }
     setRunning((r) => !r);
   }, [running, clock, shot]);
-  const resetClock = useCallback(() => { tap(); setRunning(false); setClock(periodLen); setShot(24); }, [periodLen]);
+  const resetClock = useCallback(() => { tap(); setRunning(false); setClock(periodLen); setShot(24); setShotShown(false); }, [periodLen]);
   const bumpScore = (side, d) => {
     tap();
     side === "home" ? setHome((v) => Math.max(0, v + d)) : setGuest((v) => Math.max(0, v + d));
@@ -265,7 +271,7 @@ export default function ScoreboardScreen() {
     const next = Math.min(4, Math.max(1, period + d));
     setPeriod(next);
     if (d > 0) {
-      setClock(periodLen); setShot(SHOT_FULL); setRunning(false);
+      setClock(periodLen); setShot(SHOT_FULL); setRunning(false); setShotShown(false);
       setHFoul(0); setGFoul(0); // FIBA: team fouls reset at the start of each period
       setPoss((p) => (p === "home" ? "guest" : "home")); // alternating-possession arrow each new period
       // Crossing into the second half (Q3): replenish to the second-half timeout allotment.
@@ -284,6 +290,7 @@ export default function ScoreboardScreen() {
     setHTO(TO_FIRST_HALF); setGTO(TO_FIRST_HALF);
     setPeriod(1);
     setPoss("home");
+    setShotShown(false);
   }, [periodLen]);
 
   // The new-game icon confirms before wiping the board.
@@ -303,11 +310,11 @@ export default function ScoreboardScreen() {
   const buildState = useCallback(() => ({
     clock: fmtClock(clock),
     shot, home, guest, hFoul, gFoul, hTO, gTO, period, poss, running,
-    shotOff: clock < SHOT_FULL,            // hide the shot clock in the period's final 24s (game time left < 24)
+    shotOff: clock < SHOT_FULL && !shotShown, // hidden in the final 24s, unless the endgame toggle forces it on
     hBonus: hFoul >= FOUL_BONUS,           // home in the penalty (guest shoots free throws)
     gBonus: gFoul >= FOUL_BONUS,           // guest in the penalty (home shoots free throws)
     toMax: toAllotment(period),            // how many timeout dots to show this half
-  }), [clock, shot, home, guest, hFoul, gFoul, hTO, gTO, period, poss, running]);
+  }), [clock, shot, home, guest, hFoul, gFoul, hTO, gTO, period, poss, running, shotShown]);
 
   // Start/stop mirroring a clean scoreboard to an external display (HDMI / cast),
   // while this phone keeps the control buttons.
@@ -387,6 +394,22 @@ export default function ScoreboardScreen() {
     setEditing(false);
   };
 
+  // The hidden shot-clock toggle surfaces only in the period's final 23s; while it's
+  // on screen it blinks to draw the operator's eye. Off-window it stays fully hidden.
+  const showShotToggle = clock <= SHOT_TOGGLE_AT;
+  const blink = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (!showShotToggle) { blink.setValue(1); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(blink, { toValue: 0.2, duration: 450, useNativeDriver: true }),
+        Animated.timing(blink, { toValue: 1, duration: 450, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [showShotToggle, blink]);
+
   return (
     <View style={[s.screen, { paddingTop: 8, paddingBottom: insets.bottom + 8 }, s.screenPresenting]}>
         {/* The phone is a pure control panel — the board is never shown here; it
@@ -452,6 +475,31 @@ export default function ScoreboardScreen() {
 
         </View>
         </PresentingCtx.Provider>
+
+        {/* Hidden endgame toggle: only appears in the final 23s. It floats as an
+            absolute, high-elevation overlay (not an inline row) so it can never be
+            pushed off-screen on shorter devices — guaranteeing it's visible on any
+            Android brand. Blinks + is highlighted so it can't be missed. Uses a
+            View-drawn dot + plain ASCII (no emoji) so it renders identically across
+            every device font. Shows/hides the shot clock on the external display
+            (which otherwise auto-hides it in the period's final 24s). */}
+        {showShotToggle && (
+          <Animated.View
+            pointerEvents="box-none"
+            style={[s.shotToggleWrap, { bottom: insets.bottom + 16, opacity: blink }]}
+          >
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => { tap(); setShotShown((v) => !v); }}
+              style={[s.shotToggle, shotShown ? s.shotToggleOn : s.shotToggleOff]}
+            >
+              <View style={[s.shotDot, shotShown ? s.shotDotOn : s.shotDotOff]} />
+              <Text style={s.shotToggleText}>
+                {shotShown ? "Shot Clock: ON  - tap to hide" : "Shot Clock: OFF  - tap to show"}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
 
       {/* ===================== EDIT CLOCK MODAL ===================== */}
       <Modal visible={editing} transparent animationType="fade">
@@ -544,6 +592,27 @@ const s = StyleSheet.create({
   btnTall: { paddingVertical: 18 },          // presenting: finger-friendly control panel
   btnText: { color: "#E2E8F0", fontSize: 15, fontWeight: "800" },
   btnTextTall: { fontSize: 18 },
+
+  // ---- hidden endgame shot-clock toggle (final 23s) ----
+  // Floating overlay, centered near the bottom; high zIndex/elevation keeps it on
+  // top of the controls on every device so it's always visible (any Android brand).
+  shotToggleWrap: { position: "absolute", left: 0, right: 0, alignItems: "center", zIndex: 1000, elevation: 1000 },
+  shotToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 3,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    elevation: 14,        // Android: cast a shadow + stack above the control buttons
+  },
+  shotToggleOn: { backgroundColor: "#14361F", borderColor: COL.to },
+  shotToggleOff: { backgroundColor: "#3A1410", borderColor: COL.foul },
+  shotDot: { width: 16, height: 16, borderRadius: 8 }, // color-coded status (no emoji → renders everywhere)
+  shotDotOn: { backgroundColor: COL.to },
+  shotDotOff: { backgroundColor: COL.foul },
+  shotToggleText: { color: "#FFFFFF", fontSize: 16, fontWeight: "900", letterSpacing: 0.5 },
   screenPresenting: { justifyContent: "center" },
   presentBar: {
     flexDirection: "row",

@@ -98,6 +98,13 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         }
     }
 
+    // Immersive mode commonly drops when the window (re)gains focus — re-assert the
+    // hide so the nav/status bars stay gone for the whole session, not just at first paint.
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideSystemBars()
+    }
+
     /** Drive both the modern (API 30+) and legacy paths to hide the status/nav bars. */
     private fun hideSystemBars() {
         window?.let { w ->
@@ -161,11 +168,11 @@ class ScoreboardPresentation(context: Context, display: Display) : Presentation(
         val root = LinearLayout(ctx)
         root.orientation = LinearLayout.VERTICAL
         root.setBackgroundColor(cBg)
-        // Maximize the usable width: keep a small vertical margin but let the board
-        // run nearly edge-to-edge horizontally so the clock/scores get the full width.
+        // Maximize the usable width: keep a small vertical margin but run the board
+        // fully edge-to-edge horizontally (no left/right margin) so the clock/scores
+        // get the entire width.
         val padV = (h * 0.03f).toInt()
-        val padH = (h * 0.012f).toInt()
-        root.setPadding(padH, padV, padH, padV)
+        root.setPadding(0, padV, 0, padV)
         root.gravity = Gravity.CENTER_VERTICAL
 
         // ---- TOP: corners + clock ----
